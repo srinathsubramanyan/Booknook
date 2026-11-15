@@ -124,6 +124,16 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
 .sheet-panel{position:relative;width:100%;max-width:680px;max-height:92%;overflow:auto;background:var(--surface);border-radius:16px 16px 0 0;border:1px solid var(--line);border-bottom:0;
   padding:18px max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.vbar{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-top:14px}
+.vsel{display:grid;gap:4px;font-size:12px;font-weight:600;color:var(--muted)}
+.vsel select{min-height:40px;padding:6px 10px;font-size:15px;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:8px;max-width:100%}
+.gh{margin:22px 0 2px;font-family:var(--font-display);font-size:17px}
+.gh span{font-family:var(--font-body);font-size:13px;color:var(--muted);font-weight:500;margin-left:4px}
+.gen{margin-top:4px}.gen .chip{margin-left:0}
+.btn.newc{background:var(--accent-soft);color:var(--accent);border-color:transparent;font-weight:700}
+.newbox{margin-top:14px}.newlist{display:flex;flex-wrap:wrap;gap:8px}
+.tab.has-new::after{content:"";position:absolute;top:8px;left:calc(50% + 2px);width:9px;height:9px;border-radius:50%;background:#D9822B;border:2px solid var(--surface)}
+.comment.new .cbody{border-left:3px solid var(--accent);padding-left:9px}
 .thread{max-height:42vh;overflow-y:auto;display:grid;gap:12px;margin:4px 0 8px;padding-right:2px}
 .comment{display:flex;gap:10px;align-items:flex-start}
 .cbody{min-width:0;flex:1}
@@ -136,7 +146,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
 .field{display:grid;gap:6px;margin-top:14px}
 .field label{font-weight:600;font-size:14px}
 .opt{font-weight:400;color:var(--muted);font-size:13px}
-.field input,.field textarea{width:100%;min-height:44px;padding:10px 12px;font-size:16px;background:var(--bg);border:1px solid var(--line);border-radius:8px}
+.field input,.field textarea,.field select{width:100%;min-height:44px;padding:10px 12px;font-size:16px;background:var(--bg);border:1px solid var(--line);border-radius:8px}
 .field textarea{min-height:84px;resize:vertical}
 .err{color:var(--danger);min-height:1.4em;margin-top:10px;font-size:14px}
 .sheet-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px}
@@ -222,10 +232,12 @@ import * as FS from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firesto
 (function(){
 'use strict';
 var CFG=(window.BOOKNOOK_CONFIG||{}).firebase||{};
+var GENRES=["Literary fiction", "Mystery & thriller", "Science fiction", "Fantasy", "Romance", "Historical fiction", "Young adult", "Graphic novel", "Biography & memoir", "History", "Science & nature", "Self-improvement", "Business", "Philosophy & religion", "Poetry & drama", "Essays", "Other"];
 var COLS={members:'members',lists:'books',recs:'ideas',swaps:'swaps',meetups:'meetups',comments:'comments'};
 var TABS=['reading','ideas','swap','meetups'];
-var state={discuss:null,shown:{},comments:[],commentsOff:false,uid:null,ready:{},loaded:false,denied:false,error:null,unsubs:[],
-  lists:[],recs:[],swaps:[],meetups:[],members:[],filter:'all',armed:null};
+var state={seen:{},seenReady:false,seenOff:false,marked:{},openSeen:0,discuss:null,shown:{},comments:[],commentsOff:false,uid:null,ready:{},loaded:false,denied:false,error:null,unsubs:[],
+  lists:[],recs:[],swaps:[],meetups:[],members:[],filter:'all',armed:null,
+  opts:{reading:{genre:'all',sort:'default',group:false},ideas:{genre:'all',sort:'default',group:false},swap:{genre:'all',sort:'default',group:false}}};
 var auth=null,db=null,gateMode='',busy=new Set(),armT=0,toastT=0,schedT=0,sheetOpts=null,lastFocus=null;
 
 function $(s){return document.querySelector(s);}
@@ -271,17 +283,17 @@ var MAP={
   lists:function(d){
     var rd={};Object.keys(d.readers||{}).forEach(function(k){var v=d.readers[k]||{};rd[k]={s:v.s,at:ts(v.at)};});
     return {id:d.id,title:d.title,author:d.author,note:d.note,by:d.createdBy,suggestedBy:d.suggestedBy||'',
-      createdAt:ts(d.createdAt),readers:rd,votes:d.votes||{},ratings:d.ratings||{}};},
+      genre:d.genre||'',createdAt:ts(d.createdAt),readers:rd,votes:d.votes||{},ratings:d.ratings||{}};},
   comments:function(d){return {id:d.id,bookId:d.bookId,text:d.text,spoiler:!!d.spoiler,by:d.createdBy,createdAt:ts(d.createdAt)};},
-  recs:function(d){return {id:d.id,title:d.title,author:d.author,why:d.why,by:d.createdBy,createdAt:ts(d.createdAt),backs:d.backs||{}};},
-  swaps:function(d){return {id:d.id,title:d.title,author:d.author,note:d.note,owner:d.ownerId,status:d.status,
+  recs:function(d){return {genre:d.genre||'',id:d.id,title:d.title,author:d.author,why:d.why,by:d.createdBy,createdAt:ts(d.createdAt),backs:d.backs||{}};},
+  swaps:function(d){return {genre:d.genre||'',id:d.id,title:d.title,author:d.author,note:d.note,owner:d.ownerId,status:d.status,
     requestedBy:d.requestedBy||'',borrowedBy:d.borrowedBy||'',createdAt:ts(d.createdAt)};},
   meetups:function(d){return {id:d.id,title:d.title,when:d.startsAt&&d.startsAt.toDate?d.startsAt.toDate():null,place:d.place,book:d.book,notes:d.notes,
     by:d.createdBy,createdAt:ts(d.createdAt),rsvp:d.rsvp||{}};}
 };
 function resetData(){
   state.ready={};state.loaded=false;state.denied=false;state.error=null;
-  state.lists=[];state.comments=[];state.recs=[];state.swaps=[];state.meetups=[];state.members=[];
+  state.seen={};state.seenReady=false;state.seenOff=false;state.marked={};state.lists=[];state.comments=[];state.recs=[];state.swaps=[];state.meetups=[];state.members=[];
 }
 function stopListening(){state.unsubs.forEach(function(u){try{u();}catch(e){}});state.unsubs=[];}
 function startListening(){
@@ -298,6 +310,12 @@ function startListening(){
       onListenError(err);});
     state.unsubs.push(un);
   });
+  // Which discussion comments this person has already read (private to them, synced across their devices).
+  state.unsubs.push(FS.onSnapshot(FS.doc(db,'reads',state.uid),function(snap){
+    var d=snap.exists()?snap.data({serverTimestamps:'estimate'}):{};
+    var m={};Object.keys(d.seen||{}).forEach(function(k){m[k]=ts(d.seen[k]);});
+    state.seen=m;state.seenReady=true;state.seenOff=false;schedule();
+  },function(){state.seenOff=true;state.seenReady=false;schedule();}));
 }
 function onListenError(err){
   if(!state.uid||state.denied) return;
@@ -351,7 +369,7 @@ function saveNick(nick){
 }
 function newBook(v,extra){
   var votes={};votes[state.uid]=true;
-  return FS.addDoc(colRef('books'),Object.assign({title:v.title,author:v.author||'',note:v.note||'',suggestedBy:'',
+  return FS.addDoc(colRef('books'),Object.assign({genre:v.genre||'',title:v.title,author:v.author||'',note:v.note||'',suggestedBy:'',
     createdBy:state.uid,createdAt:FS.serverTimestamp(),votes:votes,ratings:{},readers:{}},extra||{}));
 }
 function setReader(id,s){
@@ -363,7 +381,7 @@ function promote(id){
   var dup=state.lists.some(function(l){return (l.title||'').toLowerCase()===(r.title||'').toLowerCase()&&(l.author||'').toLowerCase()===(r.author||'').toLowerCase();});
   if(dup){toast('That book is already on the reading list.');return;}
   guarded('promote'+id,function(){
-    return newBook({title:r.title,author:r.author,note:r.why},{suggestedBy:r.by||''}).then(function(){toast('Added to the reading list.');});
+    return newBook({title:r.title,author:r.author,note:r.why,genre:r.genre},{suggestedBy:r.by||''}).then(function(){toast('Added to the reading list.');});
   });
 }
 function borrow(id){
@@ -388,7 +406,7 @@ function delBtn(coll,it){
 function bookCard(it,extra,actions){
   var t=(it.title||'?').trim();
   return '<article class="card"><div class="spine s'+hue(t)+'" aria-hidden="true">'+esc(t.charAt(0).toUpperCase())+'</div>'+
-    '<div class="card-main"><h3 class="bt">'+esc(it.title)+'</h3><p class="au">'+esc(it.author||'Author not listed')+'</p>'+(extra||'')+'</div>'+
+    '<div class="card-main"><h3 class="bt">'+esc(it.title)+'</h3><p class="au">'+esc(it.author||'Author not listed')+'</p>'+(it.genre?'<p class="gen"><span class="chip slate">'+esc(it.genre)+'</span></p>':'')+(extra||'')+'</div>'+
     (actions?'<div class="card-actions">'+actions+'</div>':'')+'</article>';
 }
 function emptyBlock(title,text,act,label){
@@ -409,6 +427,54 @@ function readersLine(it){
   if(done.length) out+='<p class="meta">Finished by: '+done.map(who).join(', ')+'</p>';
   return out;
 }
+function viewItems(tab,items,dflt){
+  var o=state.opts[tab];
+  var out=items.filter(function(x){return o.genre==='all'||(o.genre==='_none'?!x.genre:x.genre===o.genre);});
+  var by=o.sort;
+  function pop(x){return count(x.votes||x.backs||{});}
+  if(by==='default') out.sort(dflt);
+  else out.sort(function(a,b){
+    if(by==='latest') return (b.createdAt||0)-(a.createdAt||0);
+    if(by==='oldest') return (a.createdAt||0)-(b.createdAt||0);
+    if(by==='popular') return pop(b)-pop(a)||(b.createdAt||0)-(a.createdAt||0);
+    if(by==='author') return (a.author||'~').localeCompare(b.author||'~')||(a.title||'').localeCompare(b.title||'');
+    return (a.title||'').localeCompare(b.title||'');
+  });
+  return out;
+}
+function cardList(tab,items,cardFn){
+  if(!state.opts[tab].group) return '<div class="list">'+items.map(cardFn).join('')+'</div>';
+  var out='';
+  GENRES.concat(['']).forEach(function(g){
+    var part=items.filter(function(x){return (x.genre||'')===g;});
+    if(part.length) out+='<h4 class="gh">'+esc(g||'No genre set')+' <span>'+part.length+'</span></h4><div class="list">'+part.map(cardFn).join('')+'</div>';
+  });
+  return out;
+}
+function toolbar(tab,all,popular){
+  var o=state.opts[tab];
+  var present=GENRES.filter(function(g){return all.some(function(x){return x.genre===g;});});
+  var anyNone=all.some(function(x){return !x.genre;});
+  if(o.genre!=='all'&&present.indexOf(o.genre)<0&&!(o.genre==='_none'&&anyNone)) o.genre='all';
+  var gs=[['all','All genres']].concat(present.map(function(g){return [g,g];}));
+  if(anyNone&&present.length) gs.push(['_none','No genre set']);
+  var ss=[['default','Default order'],['latest','Newest first'],['oldest','Oldest first']];
+  if(popular) ss.push(['popular','Most '+popular]);
+  ss.push(['title','Title A to Z'],['author','Author A to Z']);
+  function sel(c,list,v,label){return '<label class="vsel"><span>'+label+'</span><select data-ctl="'+c+'">'+list.map(function(x){return '<option value="'+esc(x[0])+'"'+(x[0]===v?' selected':'')+'>'+esc(x[1])+'</option>';}).join('')+'</select></label>';}
+  return '<div class="vbar">'+sel('genre',gs,o.genre,'Genre')+sel('sort',ss,o.sort,'Sort')+btn('Group by genre','group',null,{pressed:o.group,kind:'quiet'})+'</div>';
+}
+function genreBtn(coll,it,owner){
+  if(!canWrite()||owner!==state.uid) return '';
+  return btn(it.genre?'Change genre':'Set genre','setgenre',it.id,{arg:coll,kind:'quiet'});
+}
+function ownBtns(coll,it){return genreBtn(coll,it,it.by)+delBtn(coll,it);}
+function openGenre(coll,id){
+  var list=coll==='lists'?state.lists:coll==='recs'?state.recs:state.swaps;
+  var it=list.find(function(x){return x.id===id;});if(!it) return;
+  openSheet({title:'Genre',intro:it.title,submit:'Save',fields:[{id:'genre',label:'Genre',type:'select',value:it.genre||''}],
+    onSubmit:function(v){return FS.updateDoc(ref(TABLE_OF[coll],id),{genre:v.genre});}});
+}
 function viewReading(){
   var L=state.lists;
   var h=head('Reading list','Everyone reads at their own pace. Vote on what to pick up next, then start and finish books whenever you like.','add-book','Add a book');
@@ -416,29 +482,33 @@ function viewReading(){
   if(!L.length) return h+emptyBlock('Nothing on the list yet','Add the book you want the group to read next. Everyone can vote, and everyone keeps their own progress.','add-book','Add a book');
   function st(it){var r=readerOf(it,state.uid);return r?r.s:'';}
   function mineAt(it){var r=readerOf(it,state.uid);return r?r.at:0;}
-  var cur=L.filter(function(x){return st(x)==='reading';}).sort(function(a,b){return mineAt(b)-mineAt(a);});
-  var queue=L.filter(function(x){return !st(x);}).sort(function(a,b){return count(b.votes)-count(a.votes)||(a.createdAt||0)-(b.createdAt||0);});
-  var done=L.filter(function(x){return st(x)==='done';}).sort(function(a,b){return mineAt(b)-mineAt(a);});
+  var byMine=function(a,b){return mineAt(b)-mineAt(a);};
+  var cur=viewItems('reading',L.filter(function(x){return st(x)==='reading';}),byMine);
+  var queue=viewItems('reading',L.filter(function(x){return !st(x);}),function(a,b){return count(b.votes)-count(a.votes)||(a.createdAt||0)-(b.createdAt||0);});
+  var done=viewItems('reading',L.filter(function(x){return st(x)==='done';}),byMine);
+  var flt=state.opts.reading.genre!=='all';
   function lines(it){return '<p class="meta">Added by '+who(it.suggestedBy||it.by)+'</p>'+(it.note?'<p class="quote">'+esc(it.note)+'</p>':'')+readersLine(it);}
-  var out=h+'<h3 class="label">You are reading</h3>';
-  out+=cur.length?'<div class="list">'+cur.map(function(it){
-    return bookCard(it,lines(it),btn('Mark finished','finish',it.id,{kind:'primary'})+btn('Stop reading','unstart',it.id,{kind:'quiet'})+discussBtn(it)+delBtn('lists',it));
-  }).join('')+'</div>':'<div class="empty"><p>Nothing on the go. Start one from Up next.</p></div>';
+  var ub=unreadBooks();
+  var banner=ub.length?'<div class="note-box newbox"><span><b>New in the discussions</b></span><span class="newlist">'+ub.map(function(x){return btn(esc(x.b.title)+' &middot; '+x.n,'discuss',x.b.id,{kind:'newc'});}).join('')+'</span></div>':'';
+  var out=h+banner+toolbar('reading',L,'votes')+'<h3 class="label">You are reading</h3>';
+  out+=cur.length?cardList('reading',cur,function(it){
+    return bookCard(it,lines(it),btn('Mark finished','finish',it.id,{kind:'primary'})+btn('Stop reading','unstart',it.id,{kind:'quiet'})+discussBtn(it)+ownBtns('lists',it));
+  }):'<div class="empty"><p>'+(flt?'No books in this genre here.':'Nothing on the go. Start one from Up next.')+'</p></div>';
   out+='<h3 class="label">Up next</h3>';
-  out+=queue.length?'<div class="list">'+queue.map(function(it){
-    return bookCard(it,lines(it),btn('Vote &middot; '+count(it.votes),'vote',it.id,{pressed:mine(it.votes)})+btn('Start reading','start',it.id)+discussBtn(it)+delBtn('lists',it));
-  }).join('')+'</div>':'<div class="empty"><p>Nothing left to pick up. Add a book or move one over from Ideas.</p></div>';
+  out+=queue.length?cardList('reading',queue,function(it){
+    return bookCard(it,lines(it),btn('Vote &middot; '+count(it.votes),'vote',it.id,{pressed:mine(it.votes)})+btn('Start reading','start',it.id)+discussBtn(it)+ownBtns('lists',it));
+  }):'<div class="empty"><p>'+(flt?'No books in this genre here.':'Nothing left to pick up. Add a book or move one over from Ideas.')+'</p></div>';
   if(done.length){
-    out+='<h3 class="label">You have finished</h3><div class="list">'+done.map(function(it){
+    out+='<h3 class="label">You have finished</h3>'+cardList('reading',done,function(it){
       var rs=Object.values(it.ratings||{}).filter(function(n){return typeof n==='number'&&n>0;});
       var avg=rs.length?(rs.reduce(function(a,b){return a+b;},0)/rs.length).toFixed(1):null;
       var extra='<p class="meta">'+(avg?'Group rating '+avg+' out of 5 from '+rs.length+(rs.length===1?' reader':' readers'):'No ratings yet')+'</p>'+readersLine(it);
       var mineR=(it.ratings||{})[state.uid]||0;
       var acts='<span class="meta">Your rating</span>';
       for(var n=1;n<=5;n++) acts+=btn(String(n),'rate',it.id,{arg:n,pressed:mineR===n,kind:'rate'});
-      acts+=btn('Back to reading','start',it.id,{kind:'quiet'})+discussBtn(it)+delBtn('lists',it);
+      acts+=btn('Back to reading','start',it.id,{kind:'quiet'})+discussBtn(it)+ownBtns('lists',it);
       return bookCard(it,extra,acts);
-    }).join('')+'</div>';
+    });
   }
   return out;
 }
@@ -448,14 +518,16 @@ function viewIdeas(){
   var h=head('Ideas','Books you think the others would enjoy. Say why, and let people back the ones they would read.','add-idea','Recommend');
   if(!state.loaded) return h+loadingBlock();
   if(!R.length) return h+emptyBlock('No recommendations yet','Share a book you loved and say why. Others can back it, and anyone can move it onto the reading list.','add-idea','Recommend a book');
-  var sorted=R.slice().sort(function(a,b){return count(b.backs)-count(a.backs)||(b.createdAt||0)-(a.createdAt||0);});
-  return h+'<div class="list">'+sorted.map(function(it){
+  var sorted=viewItems('ideas',R,function(a,b){return count(b.backs)-count(a.backs)||(b.createdAt||0)-(a.createdAt||0);});
+  var tb=toolbar('ideas',R,'backed');
+  if(!sorted.length) return h+tb+'<div class="empty"><p>No recommendations in this genre.</p></div>';
+  return h+tb+cardList('ideas',sorted,function(it){
     var onList=state.lists.some(function(l){return (l.title||'').toLowerCase()===(it.title||'').toLowerCase();});
     var extra='<p class="meta">Recommended by '+who(it.by)+'</p>'+(it.why?'<p class="quote">'+esc(it.why)+'</p>':'');
     var acts=btn('I would read this &middot; '+count(it.backs),'back',it.id,{pressed:mine(it.backs)})+
-      (onList?'<span class="chip">On the reading list</span>':btn('Add to reading list','promote',it.id))+delBtn('recs',it);
+      (onList?'<span class="chip">On the reading list</span>':btn('Add to reading list','promote',it.id))+ownBtns('recs',it);
     return bookCard(it,extra,acts);
-  }).join('')+'</div>';
+  });
 }
 
 function viewSwap(){
@@ -468,12 +540,13 @@ function viewSwap(){
     if(f==='mine') return x.owner===state.uid;
     if(f==='borrow') return x.borrowedBy===state.uid||x.requestedBy===state.uid;
     return true;
-  }).sort(function(a,b){var o={available:0,requested:1,lent:2};return (o[a.status]||0)-(o[b.status]||0)||(b.createdAt||0)-(a.createdAt||0);});
+  });
+  shown=viewItems('swap',shown,function(a,b){var o={available:0,requested:1,lent:2};return (o[a.status]||0)-(o[b.status]||0)||(b.createdAt||0)-(a.createdAt||0);});
   var seg='<div class="seg" role="group" aria-label="Filter books">'+
     btn('All','filter',null,{arg:'all',pressed:f==='all'})+btn('Mine','filter',null,{arg:'mine',pressed:f==='mine'})+btn('Borrowing','filter',null,{arg:'borrow',pressed:f==='borrow'})+'</div>';
-  var out=h+seg;
-  if(!shown.length) return out+'<div class="empty"><p>'+(f==='mine'?'You have not offered any books yet.':'You are not borrowing or asking for anything right now.')+'</p></div>';
-  return out+'<div class="list">'+shown.map(function(it){
+  var out=h+seg+toolbar('swap',S,null);
+  if(!shown.length) return out+'<div class="empty"><p>'+(state.opts.swap.genre!=='all'?'No books in this genre here.':f==='mine'?'You have not offered any books yet.':'You are not borrowing or asking for anything right now.')+'</p></div>';
+  return out+cardList('swap',shown,function(it){
     var chip=it.status==='lent'?'<span class="chip slate">Lent out</span>':it.status==='requested'?'<span class="chip amber">Requested</span>':'<span class="chip">Available</span>';
     var extra='<p class="meta">Owned by '+who(it.owner)+chip+'</p>';
     if(it.status==='requested') extra+='<p class="meta">'+Who(it.requestedBy)+(it.requestedBy===state.uid?' have':' has')+' asked to borrow it.</p>';
@@ -483,13 +556,13 @@ function viewSwap(){
     if(it.owner===state.uid){
       if(it.status==='requested') a=btn('Lend to '+who(it.requestedBy),'lend',it.id,{kind:'primary'})+btn('Decline','release',it.id);
       else if(it.status==='lent') a=btn('Mark returned','release',it.id,{kind:'primary'});
-      a+=it.status==='available'?delBtn('swaps',{id:it.id,by:it.owner}):'';
+      a+=genreBtn('swaps',it,it.owner)+(it.status==='available'?delBtn('swaps',{id:it.id,by:it.owner}):'');
     }else{
       if(it.status==='available') a=btn('Ask to borrow','borrow',it.id,{kind:'primary'});
       else if(it.status==='requested'&&it.requestedBy===state.uid) a=btn('Cancel request','cancel',it.id);
     }
     return bookCard(it,extra,a);
-  }).join('')+'</div>';
+  });
 }
 
 function meetupCard(m,isPast){
@@ -542,7 +615,9 @@ function drawChrome(){
     (n?'<span class="avs">'+ids.slice(0,6).map(function(i){return av(i);}).join('')+'</span>':'')+'<b>'+(n?n:'Members')+'</b></button>';
   $('#notes').innerHTML=state.error?'<div class="note-box warn"><span>Cannot reach the club database right now. What you see may be out of date. It will refresh by itself when the connection returns.</span></div>':'';
   var t=curTab();
+  var anyNew=unreadBooks().length>0;
   document.querySelectorAll('.tab').forEach(function(a){
+    if(a.classList) a.classList.toggle('has-new',a.dataset.tab==='reading'&&anyNew);
     if(a.dataset.tab===t) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current');
   });
   var counts={
@@ -572,7 +647,8 @@ function fieldHtml(f,prefix){
   var id=(prefix||'f-')+f.id;
   if(f.type==='checkbox') return '<div class="checkrow"><label for="'+id+'"><input type="checkbox" id="'+id+'" name="'+f.id+'"> '+esc(f.label)+'</label></div>';
   var lab='<label for="'+id+'">'+esc(f.label)+(f.required?'':' <span class="opt">optional</span>')+'</label>';
-  var ctl=f.type==='textarea'?'<textarea id="'+id+'" name="'+f.id+'" maxlength="'+(f.max||600)+'" placeholder="'+esc(f.placeholder||'')+'">'+esc(f.value||'')+'</textarea>':
+  var ctl=f.type==='select'?'<select id="'+id+'" name="'+f.id+'"><option value="">'+esc(f.blank||'Not set')+'</option>'+GENRES.map(function(g){return '<option'+(g===f.value?' selected':'')+'>'+esc(g)+'</option>';}).join('')+'</select>':
+    f.type==='textarea'?'<textarea id="'+id+'" name="'+f.id+'" maxlength="'+(f.max||600)+'" placeholder="'+esc(f.placeholder||'')+'">'+esc(f.value||'')+'</textarea>':
     '<input id="'+id+'" name="'+f.id+'" type="'+(f.type||'text')+'" maxlength="'+(f.max||140)+'" placeholder="'+esc(f.placeholder||'')+'" value="'+esc(f.value||'')+'" autocomplete="'+(f.auto||'off')+'">';
   return '<div class="field">'+lab+ctl+'</div>';
 }
@@ -676,18 +752,18 @@ $('#sheet-form').addEventListener('submit',function(e){
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#sheet').hidden) closeSheet();});
 
 function openAddBook(){openSheet({title:'Add a book',intro:'It goes to Up next with your vote on it.',submit:'Add to the list',
-  fields:[{id:'title',label:'Title',required:true,max:200},{id:'author',label:'Author',max:200},{id:'note',label:'Why this one?',type:'textarea'}],
+  fields:[{id:'title',label:'Title',required:true,max:200},{id:'author',label:'Author',max:200},{id:'genre',label:'Genre',type:'select'},{id:'note',label:'Why this one?',type:'textarea'}],
   onSubmit:function(v){return newBook(v);}});}
 function openAddIdea(){openSheet({title:'Recommend a book',submit:'Share',
-  fields:[{id:'title',label:'Title',required:true,max:200},{id:'author',label:'Author',max:200},{id:'why',label:'Why you would recommend it',type:'textarea'}],
+  fields:[{id:'title',label:'Title',required:true,max:200},{id:'author',label:'Author',max:200},{id:'genre',label:'Genre',type:'select'},{id:'why',label:'Why you would recommend it',type:'textarea'}],
   onSubmit:function(v){
     var backs={};backs[state.uid]=true;
-    return FS.addDoc(colRef('ideas'),{title:v.title,author:v.author||'',why:v.why||'',createdBy:state.uid,createdAt:FS.serverTimestamp(),backs:backs});
+    return FS.addDoc(colRef('ideas'),{genre:v.genre||'',title:v.title,author:v.author||'',why:v.why||'',createdBy:state.uid,createdAt:FS.serverTimestamp(),backs:backs});
   }});}
 function openAddSwap(){openSheet({title:'Offer a book to lend',intro:'Friends can ask to borrow it. You choose who gets it.',submit:'Offer it',
-  fields:[{id:'title',label:'Title',required:true,max:200},{id:'author',label:'Author',max:200},{id:'note',label:'Condition or anything to know',type:'textarea'}],
+  fields:[{id:'title',label:'Title',required:true,max:200},{id:'author',label:'Author',max:200},{id:'genre',label:'Genre',type:'select'},{id:'note',label:'Condition or anything to know',type:'textarea'}],
   onSubmit:function(v){
-    return FS.addDoc(colRef('swaps'),{title:v.title,author:v.author||'',note:v.note||'',ownerId:state.uid,status:'available',requestedBy:'',borrowedBy:'',createdAt:FS.serverTimestamp()});
+    return FS.addDoc(colRef('swaps'),{genre:v.genre||'',title:v.title,author:v.author||'',note:v.note||'',ownerId:state.uid,status:'available',requestedBy:'',borrowedBy:'',createdAt:FS.serverTimestamp()});
   }});}
 function openAddMeetup(){openSheet({title:'Plan a meetup',submit:'Add to meetups',
   fields:[{id:'title',label:'What is it?',required:true,value:'Catch-up',max:200},{id:'when',label:'Date and time',required:true,type:'datetime-local',value:nextSaturday()},
@@ -713,7 +789,27 @@ function installApp(){
   openSheet({title:'Add to home screen',html:'<p class="lede">Booknook then opens like an app, with its own icon and no browser bars.</p>'+steps,submit:'Done',fields:[],onSubmit:function(){}});
 }
 function commentsFor(id){return state.comments.filter(function(c){return c.bookId===id;}).sort(function(a,b){return (a.createdAt||0)-(b.createdAt||0);});}
-function discussBtn(it){if(state.commentsOff) return '';var n=commentsFor(it.id).length;return btn('Discuss'+(n?' &middot; '+n:''),'discuss',it.id,{kind:'quiet'});}
+function unreadFor(id){
+  if(!state.seenReady||state.commentsOff) return 0;
+  var at=state.seen[id]||0;
+  return commentsFor(id).filter(function(c){return c.by!==state.uid&&c.createdAt>at;}).length;
+}
+function unreadBooks(){return state.lists.map(function(b){return {b:b,n:unreadFor(b.id)};}).filter(function(x){return x.n>0;});}
+function markSeen(id){
+  var newest=0;
+  if(!state.seenReady||state.seenOff||state.commentsOff) return;
+  var at=state.seen[id]||0;
+  commentsFor(id).forEach(function(c){if(c.by!==state.uid&&c.createdAt>at&&c.createdAt>newest) newest=c.createdAt;});
+  if(!newest||(state.marked[id]||0)>=newest) return;
+  state.marked[id]=newest;
+  var m={};m[id]=FS.serverTimestamp();
+  FS.setDoc(ref('reads',state.uid),{seen:m},{merge:true}).catch(function(){state.marked[id]=0;});
+}
+function discussBtn(it){
+  if(state.commentsOff) return '';
+  var n=commentsFor(it.id).length,u=unreadFor(it.id);
+  return btn('Discuss'+(n?' &middot; '+n:'')+(u?' &middot; '+u+' new':''),'discuss',it.id,{kind:u?'newc':'quiet'});
+}
 function threadHtml(){
   var list=commentsFor(state.discuss);
   if(!list.length) return '<p class="lede">No comments yet. Start the conversation. If you are talking about the ending, tick the spoiler box so others can choose when to read it.</p>';
@@ -722,7 +818,8 @@ function threadHtml(){
     var body=c.spoiler&&!state.shown[c.id]&&c.by!==state.uid
       ?'<p class="spoiler">'+btn('Spoiler. Tap to read','reveal',c.id,{kind:'quiet'})+'</p>'
       :'<p class="ctext">'+(c.spoiler?'<span class="chip">Spoiler</span> ':'')+esc(c.text)+'</p>';
-    return '<div class="comment">'+av(c.by,'sm')+'<div class="cbody"><p class="meta"><b>'+who(c.by)+'</b> &middot; '+when+'</p>'+body+delBtn('comments',c)+'</div></div>';
+    var isNew=c.by!==state.uid&&state.seenReady&&c.createdAt>state.openSeen;
+    return '<div class="comment'+(isNew?' new':'')+'">'+av(c.by,'sm')+'<div class="cbody"><p class="meta"><b>'+who(c.by)+'</b> &middot; '+when+(isNew?' <span class="chip">New</span>':'')+'</p>'+body+delBtn('comments',c)+'</div></div>';
   }).join('');
 }
 function refreshThread(){
@@ -731,6 +828,7 @@ function refreshThread(){
   var key=document.activeElement&&el.contains(document.activeElement)?document.activeElement.dataset.id:null;
   el.innerHTML=threadHtml();
   if(near) el.scrollTop=el.scrollHeight;
+  markSeen(state.discuss);
   if(key){var f=el.querySelector('[data-id="'+key+'"]');if(f) f.focus();}
 }
 function openDiscuss(id){
@@ -743,7 +841,14 @@ function openDiscuss(id){
       return FS.addDoc(colRef('comments'),{bookId:id,text:v.text,spoiler:!!v.spoiler,createdBy:state.uid,createdAt:FS.serverTimestamp()});
     }});
   state.discuss=id;
-  var el=$('#thread');if(el){el.innerHTML=threadHtml();el.scrollTop=el.scrollHeight;}
+  state.openSeen=state.seen[id]||0;
+  var el=$('#thread');
+  if(el){
+    el.innerHTML=threadHtml();
+    var first=el.querySelector?el.querySelector('.comment.new'):null;
+    el.scrollTop=first?Math.max(0,first.getBoundingClientRect().top-el.getBoundingClientRect().top+el.scrollTop-8):el.scrollHeight;
+  }
+  markSeen(id);
 }
 function openMembers(){
   var rows=state.members.length?'<ul class="mlist">'+state.members.map(function(m){
@@ -777,6 +882,8 @@ function act(a,id,arg){
     case 'add-meetup':return openAddMeetup();
     case 'members':return openMembers();
     case 'install':return installApp();
+    case 'setgenre':return openGenre(arg,id);
+    case 'group':{var go=state.opts[curTab()];go.group=!go.group;return render();}
     case 'discuss':return openDiscuss(id);
     case 'reveal':state.shown[id]=true;return refreshThread();
     case 'signout':closeSheet();return FAUTH.signOut(auth);
@@ -801,6 +908,11 @@ document.addEventListener('click',function(e){
   if(e.target.closest('[data-close]')){closeSheet();return;}
   var b=e.target.closest('[data-act]');
   if(b) act(b.dataset.act,b.dataset.id,b.dataset.arg);
+});
+document.addEventListener('change',function(e){
+  var c=e.target&&e.target.dataset&&e.target.dataset.ctl;if(!c) return;
+  state.opts[curTab()][c]=e.target.value;render();
+  var n=document.querySelector('#view [data-ctl="'+c+'"]');if(n&&n.focus) n.focus();
 });
 window.addEventListener('hashchange',function(){window.scrollTo(0,0);if(!$('#app').hidden) render();});
 
