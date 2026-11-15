@@ -108,7 +108,7 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
 .empty .btn{margin-top:8px}
 
 .tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
-.tabs-in{max-width:680px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
+.tabs-in{max-width:680px;margin:0 auto;display:grid;grid-template-columns:repeat(5,1fr);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
 .tab{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:58px;padding:9px 4px 8px;color:var(--muted);text-decoration:none;font-size:12px;font-weight:500}
 .tab svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .tab[aria-current="page"]{color:var(--accent)}
@@ -152,6 +152,34 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
 .sheet-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:6px}
 .mlist{list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:14px}
 .mrow{display:flex;align-items:center;gap:10px;min-height:36px}
+
+/* game corner */
+.head.sub{margin-top:22px}
+.head.sub h3{font-family:var(--font-display);font-size:18px}
+.gnote{margin-top:14px;display:block}
+.clues{list-style:none;padding:0;display:grid;gap:6px;margin:10px 0 0}
+.clues li,.stmt{display:flex;gap:10px;align-items:flex-start}
+.cn{flex:none;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;display:inline-grid;place-items:center;margin-top:1px}
+.stmts{display:grid;gap:8px;margin-top:10px}
+.stmt{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);text-align:left;width:100%;overflow-wrap:anywhere;line-height:1.4}
+button.stmt{cursor:pointer;min-height:44px}
+button.stmt:hover{border-color:var(--muted)}
+.stmt.armed{border-color:var(--accent);background:var(--accent-soft)}
+.stmt.lie{border-color:var(--amber-fg);background:var(--amber-bg)}
+.cover{width:132px;max-width:100%;aspect-ratio:2/3;overflow:hidden;border-radius:3px 8px 8px 3px;background:var(--surface-2);margin-top:10px;box-shadow:0 1px 3px rgba(0,0,0,.25);display:grid;place-items:center}
+.cover img{width:100%;height:100%;object-fit:cover;display:block}
+.cvfail{font-size:13px;color:var(--muted);padding:8px;text-align:center}
+.cvres{margin-top:12px}
+.cvgrid{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.cvpick{padding:0;border:2px solid transparent;border-radius:6px;background:none;cursor:pointer;line-height:0}
+.cvpick img{width:64px;height:96px;object-fit:cover;border-radius:4px}
+.cvpick[aria-pressed="true"]{border-color:var(--accent)}
+.story{font-family:var(--font-book);font-size:17px;line-height:1.6;margin-top:10px;overflow-wrap:anywhere}
+.sent{border-bottom:2px solid var(--sp);padding-bottom:1px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.rank{width:22px;color:var(--muted);font-weight:600;text-align:center}
+.mrow.lb b{margin-left:auto}
 
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:60;max-width:min(92vw,520px);padding:10px 16px;border-radius:10px;background:var(--fg);color:var(--bg);font-size:14px;text-align:center}
 @media (prefers-reduced-motion:no-preference){.sheet-panel{animation:rise .18s ease-out}@keyframes rise{from{transform:translateY(24px);opacity:.4}}}
@@ -202,6 +230,9 @@ setTimeout(function(){var b=document.getElementById('boot');if(b&&!b.hidden)b.te
       <a class="tab" href="#swap" data-tab="swap">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/></svg>
         Swap<span class="badge" id="b-swap" hidden></span></a>
+      <a class="tab" href="#games" data-tab="games">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="9" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="9" r="1.1" fill="currentColor" stroke="none"/><circle cx="9" cy="15" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="1.1" fill="currentColor" stroke="none"/></svg>
+        Games<span class="badge" id="b-games" hidden></span></a>
       <a class="tab" href="#meetups" data-tab="meetups">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
         Meetups<span class="badge" id="b-meetups" hidden></span></a>
@@ -233,10 +264,12 @@ import * as FS from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firesto
 'use strict';
 var CFG=(window.BOOKNOOK_CONFIG||{}).firebase||{};
 var GENRES=["Literary fiction", "Mystery & thriller", "Science fiction", "Fantasy", "Romance", "Historical fiction", "Young adult", "Graphic novel", "Biography & memoir", "History", "Science & nature", "Self-improvement", "Business", "Philosophy & religion", "Poetry & drama", "Essays", "Other"];
-var COLS={members:'members',lists:'books',recs:'ideas',swaps:'swaps',meetups:'meetups',comments:'comments'};
-var TABS=['reading','ideas','swap','meetups'];
+var COLS={members:'members',lists:'books',recs:'ideas',swaps:'swaps',meetups:'meetups',comments:'comments',puzzles:'puzzles',truths:'truths',stories:'stories'};
+// Collections the app can live without if the newest rules are not published yet.
+var OPTIONAL={comments:1,puzzles:1,truths:1,stories:1};
+var TABS=['reading','ideas','swap','games','meetups'];
 var state={seen:{},seenReady:false,seenOff:false,marked:{},openSeen:0,discuss:null,shown:{},comments:[],commentsOff:false,uid:null,ready:{},loaded:false,denied:false,error:null,unsubs:[],
-  lists:[],recs:[],swaps:[],meetups:[],members:[],filter:'all',armed:null,
+  lists:[],recs:[],swaps:[],meetups:[],members:[],puzzles:[],truths:[],stories:[],off:{},gameTab:'guess',pickedCover:'',filter:'all',armed:null,
   opts:{reading:{genre:'all',sort:'default',group:false},ideas:{genre:'all',sort:'default',group:false},swap:{genre:'all',sort:'default',group:false}}};
 var auth=null,db=null,gateMode='',busy=new Set(),armT=0,toastT=0,schedT=0,sheetOpts=null,lastFocus=null;
 
@@ -289,24 +322,30 @@ var MAP={
   swaps:function(d){return {genre:d.genre||'',id:d.id,title:d.title,author:d.author,note:d.note,owner:d.ownerId,status:d.status,
     requestedBy:d.requestedBy||'',borrowedBy:d.borrowedBy||'',createdAt:ts(d.createdAt)};},
   meetups:function(d){return {id:d.id,title:d.title,when:d.startsAt&&d.startsAt.toDate?d.startsAt.toDate():null,place:d.place,book:d.book,notes:d.notes,
-    by:d.createdBy,createdAt:ts(d.createdAt),rsvp:d.rsvp||{}};}
+    by:d.createdBy,createdAt:ts(d.createdAt),rsvp:d.rsvp||{}};},
+  puzzles:function(d){
+    var sv={};Object.keys(d.solves||{}).forEach(function(k){var v=d.solves[k]||{};sv[k]={pts:v.pts||0,at:ts(v.at)};});
+    return {id:d.id,kind:d.kind,answer:d.answer||'',clues:d.clues||[],cover:d.cover||'',stepHrs:d.stepHrs||24,by:d.createdBy,createdAt:ts(d.createdAt),solves:sv};},
+  truths:function(d){return {id:d.id,book:d.book||'',stmts:d.stmts||[],lie:d.lie,by:d.createdBy,createdAt:ts(d.createdAt),picks:d.picks||{}};},
+  stories:function(d){return {id:d.id,title:d.title||'',parts:d.parts||[],lastBy:d.lastBy||'',done:!!d.done,by:d.createdBy,createdAt:ts(d.createdAt)};}
 };
 function resetData(){
   state.ready={};state.loaded=false;state.denied=false;state.error=null;
   state.seen={};state.seenReady=false;state.seenOff=false;state.marked={};state.lists=[];state.comments=[];state.recs=[];state.swaps=[];state.meetups=[];state.members=[];
+  state.puzzles=[];state.truths=[];state.stories=[];state.off={};
 }
 function stopListening(){state.unsubs.forEach(function(u){try{u();}catch(e){}});state.unsubs=[];}
 function startListening(){
   Object.keys(COLS).forEach(function(key){
     var un=FS.onSnapshot(FS.collection(db,COLS[key]),function(snap){
       state[key]=snap.docs.map(function(x){var d=x.data({serverTimestamps:'estimate'});d.id=x.id;return MAP[key](d);});
-      state.ready[key]=true;if(key==='comments') state.commentsOff=false;
+      state.ready[key]=true;state.off[key]=false;if(key==='comments') state.commentsOff=false;
       state.loaded=Object.keys(COLS).every(function(k){return state.ready[k];});
       state.error=null;
       schedule();
     },function(err){
-      // Discussions are optional: if the new rules are not published yet, the rest of the app keeps working.
-      if(key==='comments'&&err&&err.code==='permission-denied'){state.commentsOff=true;state.comments=[];state.ready.comments=true;state.loaded=Object.keys(COLS).every(function(k){return state.ready[k];});schedule();return;}
+      // Discussions and games are optional: if the new rules are not published yet, the rest of the app keeps working.
+      if(OPTIONAL[key]&&err&&err.code==='permission-denied'){state.off[key]=true;if(key==='comments') state.commentsOff=true;state[key]=[];state.ready[key]=true;state.loaded=Object.keys(COLS).every(function(k){return state.ready[k];});schedule();return;}
       onListenError(err);});
     state.unsubs.push(un);
   });
@@ -352,7 +391,7 @@ function guarded(key,fn){
   return Promise.resolve().then(fn).catch(function(e){toast(writeError(e));}).then(function(){busy.delete(key);});
 }
 function patchDoc(key,coll,id,data){return guarded(key,function(){return FS.updateDoc(ref(coll,id),data);});}
-var TABLE_OF={comments:'comments',lists:'books',recs:'ideas',swaps:'swaps',meetups:'meetups'};
+var TABLE_OF={comments:'comments',lists:'books',recs:'ideas',swaps:'swaps',meetups:'meetups',puzzles:'puzzles',truths:'truths',stories:'stories'};
 function del(coll,id){
   var key=coll+'/'+id;
   if(state.armed!==key){
@@ -362,6 +401,13 @@ function del(coll,id){
   }
   state.armed=null;
   guarded(key,function(){return FS.deleteDoc(ref(TABLE_OF[coll],id));});
+}
+// Two-tap confirmation for actions that cannot be undone (same idea as Remove).
+function twoTap(key){
+  if(state.armed===key){state.armed=null;return true;}
+  state.armed=key;clearTimeout(armT);
+  armT=setTimeout(function(){state.armed=null;render();},3500);
+  render();return false;
 }
 function saveNick(nick){
   var exists=state.members.some(function(m){return m.id===state.uid;});
@@ -605,6 +651,276 @@ function viewMeetups(){
   return out;
 }
 
+/* ---------- game corner ---------- */
+var COVER_STEPS=6,BLUR=[26,16,9,4.5,1.5,0],STORY_MAX=20;
+var GAMES=[['guess','Guess the Book'],['cover','Cover Roulette'],['truths','Two Truths'],['story','Pass the Story']];
+var STEPS=[['6','6 hours'],['12','12 hours'],['24','1 day'],['48','2 days']];
+
+function gamesOff(){return !!(state.off.puzzles||state.off.truths||state.off.stories);}
+function dur(ms){
+  var m=Math.max(1,Math.round(ms/60000));
+  if(m>=1440) return Math.floor(m/1440)+'d '+Math.floor((m%1440)/60)+'h';
+  if(m>=60) return Math.floor(m/60)+'h '+(m%60)+'m';
+  return m+'m';
+}
+function norm(s){
+  var t=String(s||'').toLowerCase().normalize('NFD').replace(/\p{M}+/gu,'').replace(/&/g,' and ').replace(/[^\p{L}\p{N}\s]+/gu,' ').replace(/\s+/g,' ').trim();
+  return t.replace(/^(the|a|an) /,'');
+}
+function lev(a,b){
+  // Edit distance where swapping two neighbouring letters counts as one typo.
+  var d=[],i,j;
+  for(i=0;i<=a.length;i++){d[i]=[i];}
+  for(j=1;j<=b.length;j++) d[0][j]=j;
+  for(i=1;i<=a.length;i++){
+    for(j=1;j<=b.length;j++){
+      var c=a[i-1]===b[j-1]?0:1;
+      d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+c);
+      if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1]) d[i][j]=Math.min(d[i][j],d[i-2][j-2]+1);
+    }
+  }
+  return d[a.length][b.length];
+}
+// Forgiving match: ignores case, accents, punctuation and a leading "The", and allows a small typo in longer titles.
+function sameBook(guess,answer){
+  var g=norm(guess),a=norm(answer);
+  if(!g||!a) return false;
+  var tol=a.length>=14?2:a.length>=6?1:0;
+  return Math.abs(a.length-g.length)<=tol&&lev(g,a)<=tol;
+}
+function pzState(p){
+  var steps=Math.max(1,p.kind==='cover'?COVER_STEPS:p.clues.length);
+  var stepMs=(p.stepHrs||24)*3600e3;
+  var elapsed=Math.max(0,Date.now()-(p.createdAt||Date.now()));
+  var raw=Math.floor(elapsed/stepMs);
+  return {steps:steps,idx:Math.min(raw,steps-1),over:raw>=steps,left:(raw+1)*stepMs-elapsed};
+}
+function gameScores(){
+  var s={};
+  function add(u,n){if(u) s[u]=(s[u]||0)+n;}
+  state.puzzles.forEach(function(p){Object.keys(p.solves||{}).forEach(function(u){add(u,p.solves[u].pts||0);});});
+  state.truths.forEach(function(t){Object.keys(t.picks||{}).forEach(function(u){add(t.picks[u]===t.lie?u:t.by,1);});});
+  return s;
+}
+function gameTodo(){
+  var u=state.uid,t={guess:0,cover:0,truths:0,story:0};
+  state.puzzles.forEach(function(p){if(p.by!==u&&!(p.solves||{})[u]&&!pzState(p).over&&t[p.kind]!==undefined) t[p.kind]++;});
+  state.truths.forEach(function(x){if(x.by!==u&&typeof x.picks[u]!=='number') t.truths++;});
+  state.stories.forEach(function(s){if(!s.done&&s.parts.length<STORY_MAX&&s.lastBy!==u) t.story++;});
+  return t;
+}
+function gameTodoTotal(){if(gamesOff()||!state.loaded) return 0;var t=gameTodo();return t.guess+t.cover+t.truths+t.story;}
+function section(title,items,fn,none){
+  return '<h3 class="label">'+title+'</h3>'+(items.length?'<div class="list">'+items.map(fn).join('')+'</div>':(none?'<div class="empty"><p>'+none+'</p></div>':''));
+}
+function subHead(title,act,label,lede){
+  return '<div class="head sub"><h3>'+esc(title)+'</h3>'+(canWrite()?btn(esc(label),act,null,{kind:'primary'}):'')+'</div><p class="lede">'+esc(lede)+'</p>';
+}
+function leaderboard(){
+  var s=gameScores();
+  var rows=state.members.map(function(m){return {id:m.id,n:s[m.id]||0};}).filter(function(r){return r.n>0;}).sort(function(a,b){return b.n-a.n;});
+  var out='<h3 class="label">Leaderboard</h3>';
+  if(!rows.length) return out+'<p class="meta">Points appear here once someone solves a puzzle or spots a lie.</p>';
+  return out+'<ul class="mlist">'+rows.map(function(r,i){
+    return '<li class="mrow lb"><span class="rank">'+(i+1)+'</span>'+av(r.id,'sm')+'<span>'+esc(nameOf(r.id,true))+(r.id===state.uid?' <span class="opt">(you)</span>':'')+'</span><b>'+r.n+(r.n===1?' pt':' pts')+'</b></li>';
+  }).join('')+'</ul>';
+}
+
+function pzCard(p){
+  var st=pzState(p),u=state.uid,mineP=p.by===u,sv=(p.solves||{})[u];
+  var reveal=mineP||!!sv||st.over;
+  var names=Object.keys(p.solves||{}).sort(function(a,b){return p.solves[a].at-p.solves[b].at;});
+  var title=reveal?p.answer:(p.kind==='cover'?'Mystery cover':'Mystery book');
+  var body='<p class="au">Set by '+who(p.by)+'</p>';
+  if(p.kind==='guess'){
+    var shown=reveal?p.clues.length:st.idx+1;
+    body+='<ol class="clues">'+p.clues.slice(0,shown).map(function(c,i){return '<li><span class="cn">'+(i+1)+'</span><span>'+esc(c)+'</span></li>';}).join('')+'</ol>';
+  }else{
+    var blur=reveal?0:BLUR[Math.min(st.idx,BLUR.length-1)];
+    body+='<div class="cover"><img class="cvimg" src="'+esc(p.cover)+'" alt="'+(reveal?'Cover of '+esc(p.answer):'Blurred book cover')+'" referrerpolicy="no-referrer" loading="lazy" style="filter:blur('+blur+'px);transform:scale('+(blur?1.25:1)+')"></div>';
+  }
+  if(!reveal){
+    var pts=st.steps-st.idx;
+    var last=st.idx+1>=st.steps;
+    body+='<p class="meta">Worth '+pts+(pts===1?' point':' points')+' right now. '+(last?'Ends in ':(p.kind==='guess'?'Next clue in ':'Clearer in '))+dur(st.left)+'.</p>';
+  }else if(sv){
+    body+='<p class="meta">You solved it for '+sv.pts+(sv.pts===1?' point':' points')+'.</p>';
+  }else if(mineP&&!st.over){
+    body+='<p class="meta">Your puzzle. It ends in '+dur(st.left+(st.steps-st.idx-1)*(p.stepHrs||24)*3600e3)+'.</p>';
+  }else if(st.over){
+    body+='<p class="meta">Time is up. The answer is in the title.</p>';
+  }
+  body+='<p class="meta">'+(names.length?'Solved by: '+names.map(function(k){return who(k)+' ('+p.solves[k].pts+')';}).join(', '):(st.over?'Nobody solved it.':'No one has solved it yet.'))+'</p>';
+  var acts=(!reveal&&canWrite()?btn('Guess','guess',p.id,{kind:'primary'}):'')+delBtn('puzzles',p);
+  var ch=reveal?(p.answer||'?').trim().charAt(0).toUpperCase():'?';
+  return '<article class="card"><div class="spine s'+hue(p.id)+'" aria-hidden="true">'+esc(ch)+'</div><div class="card-main"><h3 class="bt">'+esc(title)+'</h3>'+body+'</div>'+
+    (acts?'<div class="card-actions">'+acts+'</div>':'')+'</article>';
+}
+function viewPuzzles(kind){
+  var isG=kind==='guess';
+  var h=subHead(isG?'Guess the Book':'Cover Roulette','add-'+kind,'Set a puzzle',isG?'One clue unlocks at a time. The earlier you name the book, the more points you win.':'The cover starts blurred and clears a little each step. Name the book before it does.');
+  var all=state.puzzles.filter(function(p){return p.kind===kind;}).sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
+  if(!all.length) return h+emptyBlock('No puzzles yet',isG?'Pick a book and write three to five clues, from vague to obvious. Friends guess over the next few days.':'Pick a book, choose its cover, and the group gets a blurred version that clears over six steps.','add-'+kind,'Set a puzzle');
+  var u=state.uid,todo=[],play=[],done=[];
+  all.forEach(function(p){(pzState(p).over?done:(p.by===u||p.solves[u])?play:todo).push(p);});
+  return h+section('To solve',todo,pzCard,'Nothing waiting for you. Check back when someone sets a new puzzle.')+
+    (play.length?section('In play',play,pzCard):'')+(done.length?section('Finished',done,pzCard):'');
+}
+
+function truthCard(t){
+  var u=state.uid,mineT=t.by===u,my=t.picks[u],voted=typeof my==='number',reveal=mineT||voted;
+  var ids=Object.keys(t.picks),fooled=ids.filter(function(k){return t.picks[k]!==t.lie;});
+  var list=t.stmts.map(function(s,i){
+    var picked=ids.filter(function(k){return t.picks[k]===i;});
+    if(!reveal){
+      var armed=state.armed==='pick/'+t.id+'/'+i;
+      return '<button type="button" class="stmt'+(armed?' armed':'')+'" data-act="pick" data-id="'+esc(t.id)+'" data-arg="'+i+'"><span class="cn">'+(i+1)+'</span><span>'+esc(s)+(armed?'<br><b>Tap again to lock in your answer</b>':'')+'</span></button>';
+    }
+    var isLie=i===t.lie;
+    return '<div class="stmt'+(isLie?' lie':'')+'"><span class="cn">'+(i+1)+'</span><span>'+esc(s)+' <span class="chip'+(isLie?' amber':'')+'">'+(isLie?'The lie':'True')+'</span>'+(my===i?'<span class="chip slate">Your pick</span>':'')+
+      (picked.length?'<br><span class="meta">Picked by '+picked.map(who).join(', ')+'</span>':'')+'</span></div>';
+  }).join('');
+  var res=voted?(my===t.lie?'<p class="meta">You spotted the lie. +1 point.</p>':'<p class="meta">The lie fooled you this time.</p>'):
+    mineT?'<p class="meta">'+(ids.length?fooled.length+' of '+ids.length+' fooled. You earn a point for each person you fool.':'No votes yet. You earn a point for each person you fool.')+'</p>':'';
+  var d=delBtn('truths',t);
+  return '<article class="card"><div class="spine s'+hue(t.book)+'" aria-hidden="true">'+esc((t.book||'?').trim().charAt(0).toUpperCase())+'</div><div class="card-main"><h3 class="bt">'+esc(t.book)+'</h3>'+
+    '<p class="au">Set by '+who(t.by)+(reveal?'':'. Which one is the lie?')+'</p><div class="stmts">'+list+'</div>'+res+'</div>'+(d?'<div class="card-actions">'+d+'</div>':'')+'</article>';
+}
+function viewTruths(){
+  var h=subHead('Two Truths and a Plot','add-truth','Post one','Two of these plot points really happen in the book. One is made up. Spot the lie to earn a point.');
+  var all=state.truths.slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
+  if(!all.length) return h+emptyBlock('Nothing to vote on','Pick a book you have read, write two true plot points and one believable lie. The group votes.','add-truth','Post one');
+  var u=state.uid,todo=all.filter(function(t){return t.by!==u&&typeof t.picks[u]!=='number';}),rest=all.filter(function(t){return !(t.by!==u&&typeof t.picks[u]!=='number');});
+  return h+section('To vote on',todo,truthCard,'You have voted on everything. Post one of your own.')+(rest.length?section('Done',rest,truthCard):'');
+}
+
+function storyText(s){
+  return s.parts.map(function(p){return '<span class="sent s'+hue(p.by)+'">'+esc(p.text)+'</span>';}).join(' ');
+}
+function storyCard(s){
+  var u=state.uid,fin=s.done||s.parts.length>=STORY_MAX;
+  var contrib=[];s.parts.forEach(function(p){if(contrib.indexOf(p.by)<0) contrib.push(p.by);});
+  var legend=contrib.map(function(k){return '<span>'+av(k,'sm')+who(k)+'</span>';}).join('');
+  var a='';
+  if(!fin&&canWrite()){
+    a+=s.lastBy!==u?btn('Add the next sentence','addpart',s.id,{kind:'primary'}):'<span class="meta">Waiting for someone else to add the next sentence.</span>';
+    if(s.by===u) a+=btn(state.armed==='finish/'+s.id?'Tap again to finish':'Finish story','finishstory',s.id,{kind:'quiet'});
+  }
+  a+=delBtn('stories',s);
+  return '<article class="card"><div class="spine s'+hue(s.id)+'" aria-hidden="true">&para;</div><div class="card-main"><h3 class="bt">'+esc(s.title||'Untitled story')+(fin?'<span class="chip">Finished</span>':'')+'</h3>'+
+    '<p class="au">'+s.parts.length+' of '+STORY_MAX+' sentences</p><p class="story">'+storyText(s)+'</p><div class="legend">'+legend+'</div></div>'+(a?'<div class="card-actions">'+a+'</div>':'')+'</article>';
+}
+function viewStories(){
+  var h=subHead('Pass the Story','add-story','Start a story','Start with one sentence. Each person adds the next whenever they drop in, and no one can add two in a row.');
+  var all=state.stories.slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
+  if(!all.length) return h+emptyBlock('No stories yet','Write an opening line. The group takes it from there, one sentence at a time.','add-story','Start a story');
+  var u=state.uid;
+  function fin(s){return s.done||s.parts.length>=STORY_MAX;}
+  var turn=all.filter(function(s){return !fin(s)&&s.lastBy!==u;}),wait=all.filter(function(s){return !fin(s)&&s.lastBy===u;}),done=all.filter(fin);
+  return h+section('Your turn',turn,storyCard,'No story is waiting for you.')+(wait.length?section('Waiting on others',wait,storyCard):'')+(done.length?section('Finished',done,storyCard):'');
+}
+
+function viewGames(){
+  var h='<div class="head"><h2>Game corner</h2></div><p class="lede">Quick games to play whenever you drop in. Nobody has to be online at the same time.</p>';
+  if(!state.loaded) return h+loadingBlock();
+  if(gamesOff()) return h+'<div class="note-box warn gnote"><span>The game corner needs one more setup step. Paste the latest firestore.txt into Firebase &gt; Firestore Database &gt; Rules, press Publish, then reload this page.</span></div>';
+  var todo=gameTodo(),g=state.gameTab;
+  var seg='<div class="seg" role="group" aria-label="Games">'+GAMES.map(function(x){
+    return btn(esc(x[1])+(todo[x[0]]?' &middot; '+todo[x[0]]:''),'gtab',null,{arg:x[0],pressed:g===x[0]});
+  }).join('')+'</div>';
+  var body=g==='guess'||g==='cover'?viewPuzzles(g):g==='truths'?viewTruths():viewStories();
+  return h+seg+body+leaderboard();
+}
+
+function openAddGuess(){
+  openSheet({title:'Set a Guess the Book',intro:'Give three to five clues, from vague to obvious. One more unlocks each step, and earlier guesses earn more points. Use the title people would type. You cannot play your own puzzle.',submit:'Start puzzle',
+    fields:[{id:'title',label:'The book (the answer)',required:true,max:200},
+      {id:'c1',label:'Clue 1 (the vaguest)',required:true,max:200},{id:'c2',label:'Clue 2',required:true,max:200},{id:'c3',label:'Clue 3',required:true,max:200},
+      {id:'c4',label:'Clue 4',max:200},{id:'c5',label:'Clue 5 (the giveaway)',max:200},
+      {id:'step',label:'New clue every',type:'select',options:STEPS,value:'24',required:true}],
+    onSubmit:function(v){
+      var clues=[v.c1,v.c2,v.c3,v.c4,v.c5].filter(Boolean);
+      return FS.addDoc(colRef('puzzles'),{kind:'guess',answer:v.title,clues:clues,cover:'',stepHrs:Number(v.step),createdBy:state.uid,createdAt:FS.serverTimestamp(),solves:{}});
+    }});
+}
+function openAddCover(){
+  state.pickedCover='';
+  openSheet({title:'Set a Cover Roulette',intro:'Type the title, tap Find covers, and pick the edition you want. The group sees it blurred, and it clears in six steps.',submit:'Start puzzle',
+    fields:[{id:'title',label:'The book (the answer)',required:true,max:200},{id:'author',label:'Author',max:200},
+      {id:'step',label:'Cover clears every',type:'select',options:STEPS,value:'24',required:true},
+      {id:'url',label:'Or paste an image link',type:'url',max:500,placeholder:'https://'}],
+    after:'<div id="cvres" class="cvres" aria-live="polite"></div>',
+    extra:btn('Find covers','findcovers',null,{kind:'quiet'}),
+    onSubmit:function(v){
+      var url=state.pickedCover||v.url;
+      if(!/^https:\/\//.test(url||'')) throw {userMessage:'Tap Find covers and pick one, or paste an image link starting with https://.'};
+      return FS.addDoc(colRef('puzzles'),{kind:'cover',answer:v.title,clues:[],cover:url,stepHrs:Number(v.step),createdBy:state.uid,createdAt:FS.serverTimestamp(),solves:{}});
+    }});
+}
+function findCovers(){
+  var t=$('#f-title'),a=$('#f-author'),res=$('#cvres'),err=$('#sheet-err');
+  if(!t||!res) return;
+  var title=t.value.trim();
+  if(!title){err.textContent='Enter the title first.';t.focus();return;}
+  err.textContent='';
+  res.innerHTML='<p class="meta">Searching&hellip;</p>';
+  var q='https://openlibrary.org/search.json?limit=12&fields=title,cover_i&title='+encodeURIComponent(title)+(a&&a.value.trim()?'&author='+encodeURIComponent(a.value.trim()):'');
+  fetch(q).then(function(r){if(!r.ok) throw new Error('bad');return r.json();}).then(function(j){
+    var seen={},ids=[];
+    (j.docs||[]).forEach(function(d){if(d.cover_i&&!seen[d.cover_i]){seen[d.cover_i]=1;ids.push(d.cover_i);}});
+    ids=ids.slice(0,8);
+    if(!ids.length){res.innerHTML='<p class="meta">No covers found. Try adding the author, or paste an image link instead.</p>';return;}
+    res.innerHTML='<p class="meta">Tap the cover to use.</p><div class="cvgrid">'+ids.map(function(id){
+      var u='https://covers.openlibrary.org/b/id/'+id+'-M.jpg';
+      return '<button type="button" class="cvpick" data-act="pickcover" data-arg="'+esc(u)+'" aria-pressed="'+(state.pickedCover===u)+'" aria-label="Use this cover"><img src="'+esc(u)+'" alt="" loading="lazy"></button>';
+    }).join('')+'</div>';
+  }).catch(function(){res.innerHTML='<p class="meta">Could not search covers just now. Paste an image link instead.</p>';});
+}
+function openGuess(id){
+  var p=state.puzzles.find(function(x){return x.id===id;});if(!p) return;
+  openSheet({title:p.kind==='cover'?'Name that cover':'Your guess',intro:'Type the book title. Capital letters, punctuation, a missing "The" and small typos are fine.',submit:'Check',
+    fields:[{id:'guess',label:'Book title',required:true,max:200}],
+    onSubmit:function(v){
+      var q=state.puzzles.find(function(x){return x.id===id;});
+      if(!q||q.solves[state.uid]) throw {userMessage:'You have already solved this one.'};
+      var st=pzState(q);
+      if(st.over) throw {userMessage:'Time is up on this puzzle.'};
+      if(!sameBook(v.guess,q.answer)) throw {userMessage:'Not quite. Have another go.'};
+      var pts=st.steps-st.idx;
+      return FS.updateDoc(ref('puzzles',id),mapField('solves',{pts:pts,at:FS.serverTimestamp()})).then(function(){toast('Correct! +'+pts+(pts===1?' point.':' points.'));});
+    }});
+}
+function openAddTruth(){
+  openSheet({title:'Two Truths and a Plot',intro:'Write two things that really happen in a book and one that does not. Make the lie believable, and avoid big spoilers. The order is shuffled for you.',submit:'Post it',
+    fields:[{id:'book',label:'Book',required:true,max:200},
+      {id:'t1',label:'A true plot point',type:'textarea',required:true,max:300},{id:'t2',label:'Another true plot point',type:'textarea',required:true,max:300},
+      {id:'lie',label:'The lie',type:'textarea',required:true,max:300}],
+    onSubmit:function(v){
+      var s=[{t:v.t1,l:false},{t:v.t2,l:false},{t:v.lie,l:true}];
+      for(var i=s.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var x=s[i];s[i]=s[j];s[j]=x;}
+      return FS.addDoc(colRef('truths'),{book:v.book,stmts:s.map(function(x){return x.t;}),lie:s.findIndex(function(x){return x.l;}),createdBy:state.uid,createdAt:FS.serverTimestamp(),picks:{}});
+    }});
+}
+function openAddStory(){
+  openSheet({title:'Start a story',intro:'Write the opening sentence. Others add one sentence each, and nobody can add twice in a row.',submit:'Start story',
+    fields:[{id:'title',label:'Title',max:80},{id:'opening',label:'Opening sentence',type:'textarea',required:true,max:280,placeholder:'The night the library lost a book that had never been written.'}],
+    onSubmit:function(v){
+      return FS.addDoc(colRef('stories'),{title:v.title||'',parts:[{by:state.uid,text:v.opening}],lastBy:state.uid,done:false,createdBy:state.uid,createdAt:FS.serverTimestamp()});
+    }});
+}
+function openAddPart(id){
+  var s=state.stories.find(function(x){return x.id===id;});if(!s) return;
+  openSheet({title:s.title||'Untitled story',intro:'Read the story so far, then add one sentence.',submit:'Add sentence',
+    html:'<p class="story">'+storyText(s)+'</p>',
+    fields:[{id:'text',label:'Your sentence',type:'textarea',required:true,max:280}],
+    onSubmit:function(v){
+      var q=state.stories.find(function(x){return x.id===id;});
+      if(!q||q.done||q.parts.length>=STORY_MAX) throw {userMessage:'This story has finished.'};
+      if(q.lastBy===state.uid) throw {userMessage:'Let someone else add the next sentence first.'};
+      return FS.updateDoc(ref('stories',id),{parts:FS.arrayUnion({by:state.uid,text:v.text}),lastBy:state.uid}).then(function(){toast('Sentence added.');});
+    }});
+}
+
 /* ---------- chrome ---------- */
 function showApp(){gateMode='';$('#gate').hidden=true;$('#app').hidden=false;}
 function drawChrome(){
@@ -624,6 +940,7 @@ function drawChrome(){
     reading:state.lists.filter(function(x){var r=readerOf(x,state.uid);return !r||r.s!=='done';}).length,
     ideas:state.recs.length,
     swap:state.swaps.filter(function(x){return x.status==='available';}).length,
+    games:gameTodoTotal(),
     meetups:parsedMeetups().filter(function(m){return m.t>=Date.now()-3*3600e3;}).length
   };
   TABS.forEach(function(k){var b=$('#b-'+k);b.textContent=counts[k];b.hidden=!counts[k];});
@@ -633,7 +950,7 @@ function render(){
   var active=document.activeElement;
   var key=active&&active.closest&&active.closest('#view')&&active.dataset&&active.dataset.act?{a:active.dataset.act,i:active.dataset.id,g:active.dataset.arg}:null;
   drawChrome();
-  $('#view').innerHTML=t==='reading'?viewReading():t==='ideas'?viewIdeas():t==='swap'?viewSwap():viewMeetups();
+  $('#view').innerHTML=t==='reading'?viewReading():t==='ideas'?viewIdeas():t==='swap'?viewSwap():t==='games'?viewGames():viewMeetups();
   if(key){
     var sel='#view [data-act="'+key.a+'"]'+(key.i!=null?'[data-id="'+key.i+'"]':'')+(key.g!=null?'[data-arg="'+key.g+'"]':'');
     var el;try{el=document.querySelector(sel);}catch(e){el=null;}
@@ -647,7 +964,9 @@ function fieldHtml(f,prefix){
   var id=(prefix||'f-')+f.id;
   if(f.type==='checkbox') return '<div class="checkrow"><label for="'+id+'"><input type="checkbox" id="'+id+'" name="'+f.id+'"> '+esc(f.label)+'</label></div>';
   var lab='<label for="'+id+'">'+esc(f.label)+(f.required?'':' <span class="opt">optional</span>')+'</label>';
-  var ctl=f.type==='select'?'<select id="'+id+'" name="'+f.id+'"><option value="">'+esc(f.blank||'Not set')+'</option>'+GENRES.map(function(g){return '<option'+(g===f.value?' selected':'')+'>'+esc(g)+'</option>';}).join('')+'</select>':
+  var ctl=f.type==='select'?'<select id="'+id+'" name="'+f.id+'">'+(f.options?
+      f.options.map(function(o){return '<option value="'+esc(o[0])+'"'+(String(o[0])===String(f.value)?' selected':'')+'>'+esc(o[1])+'</option>';}).join(''):
+      '<option value="">'+esc(f.blank||'Not set')+'</option>'+GENRES.map(function(g){return '<option'+(g===f.value?' selected':'')+'>'+esc(g)+'</option>';}).join(''))+'</select>':
     f.type==='textarea'?'<textarea id="'+id+'" name="'+f.id+'" maxlength="'+(f.max||600)+'" placeholder="'+esc(f.placeholder||'')+'">'+esc(f.value||'')+'</textarea>':
     '<input id="'+id+'" name="'+f.id+'" type="'+(f.type||'text')+'" maxlength="'+(f.max||140)+'" placeholder="'+esc(f.placeholder||'')+'" value="'+esc(f.value||'')+'" autocomplete="'+(f.auto||'off')+'">';
   return '<div class="field">'+lab+ctl+'</div>';
@@ -718,7 +1037,7 @@ function openSheet(o){
   lastFocus=document.activeElement;
   sheetOpts=o;
   $('#sheet-title').textContent=o.title;
-  $('#sheet-body').innerHTML=(o.intro?'<p class="lede">'+esc(o.intro)+'</p>':'')+(o.html||'')+(o.fields||[]).map(function(f){return fieldHtml(f);}).join('');
+  $('#sheet-body').innerHTML=(o.intro?'<p class="lede">'+esc(o.intro)+'</p>':'')+(o.html||'')+(o.fields||[]).map(function(f){return fieldHtml(f);}).join('')+(o.after||'');
   $('#sheet-extra').innerHTML=o.extra||'';
   $('#sheet-err').textContent='';
   var sb2=$('#sheet-submit');sb2.textContent=o.submit||'Save';sb2.hidden=!o.onSubmit;
@@ -880,6 +1199,10 @@ function act(a,id,arg){
     case 'add-idea':return openAddIdea();
     case 'add-swap':return openAddSwap();
     case 'add-meetup':return openAddMeetup();
+    case 'add-guess':return openAddGuess();
+    case 'add-cover':return openAddCover();
+    case 'add-truth':return openAddTruth();
+    case 'add-story':return openAddStory();
     case 'members':return openMembers();
     case 'install':return installApp();
     case 'setgenre':return openGenre(arg,id);
@@ -902,6 +1225,25 @@ function act(a,id,arg){
     case 'copy':return copyMeetup(id);
     case 'del':return del(arg,id);
     case 'filter':state.filter=arg;return render();
+    case 'gtab':state.gameTab=arg;return render();
+    case 'guess':return openGuess(id);
+    case 'findcovers':return findCovers();
+    case 'pickcover':{
+      state.pickedCover=arg;
+      document.querySelectorAll('#cvres .cvpick').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.arg===arg?'true':'false');});
+      return;
+    }
+    case 'pick':{
+      var tq=state.truths.find(function(x){return x.id===id;});if(!tq) return;
+      if(!twoTap('pick/'+id+'/'+arg)) return;
+      return guarded('pick'+id,function(){
+        return FS.updateDoc(ref('truths',id),mapField('picks',Number(arg))).then(function(){
+          toast(Number(arg)===tq.lie?'You spotted the lie. +1 point.':'The lie fooled you this time.');
+        });
+      });
+    }
+    case 'addpart':return openAddPart(id);
+    case 'finishstory':if(!twoTap('finish/'+id)) return;return patchDoc('story'+id,'stories',id,{done:true});
   }
 }
 document.addEventListener('click',function(e){
@@ -914,6 +1256,11 @@ document.addEventListener('change',function(e){
   state.opts[curTab()][c]=e.target.value;render();
   var n=document.querySelector('#view [data-ctl="'+c+'"]');if(n&&n.focus) n.focus();
 });
+// A cover that cannot load (bad link, offline) gets a plain message instead of a broken image.
+document.addEventListener('error',function(e){
+  var t=e.target;
+  if(t&&t.classList&&t.classList.contains('cvimg')&&t.parentNode) t.parentNode.innerHTML='<span class="cvfail">Cover could not load</span>';
+},true);
 window.addEventListener('hashchange',function(){window.scrollTo(0,0);if(!$('#app').hidden) render();});
 
 /* ---------- boot ---------- */
@@ -924,6 +1271,8 @@ var fbApp=FA.initializeApp({apiKey:CFG.apiKey,authDomain:CFG.authDomain,projectI
 auth=FAUTH.getAuth(fbApp);
 db=FS.getFirestore(fbApp);
 FAUTH.onAuthStateChanged(auth,setUser);
+// Keep the clue countdowns fresh while someone has the Games tab open.
+setInterval(function(){if(!$('#app').hidden&&$('#sheet').hidden&&curTab()==='games') render();},60000);
 })();
 </script>
 </body>
