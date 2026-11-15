@@ -9,8 +9,6 @@ window.BOOKNOOK_CONFIG = {
   apiKey: "AIzaSyCwrEU106epthC-iYXJIXvC9P0L_N8cY4o",
   authDomain: "booknook-823fe.firebaseapp.com",
   projectId: "booknook-823fe",
-  storageBucket: "booknook-823fe.firebasestorage.app",
-  messagingSenderId: "860516725042",
   appId: "1:860516725042:web:b68841414588099ca1272b"
   }
 };
