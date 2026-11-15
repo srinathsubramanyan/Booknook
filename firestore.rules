@@ -1,0 +1,166 @@
+rules_version = '2';
+
+// Booknook security rules.
+// Paste this whole file into Firebase > Firestore Database > Rules, then press Publish.
+//
+// Who gets in: only people whose email is listed in the document config/allowed
+// (field "emails"). Everyone else is refused, even if they somehow create an
+// account. People can only change their own votes, ratings, replies and entries.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- helpers ----------------------------------------------------------
+
+    function isMember() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.lower() in
+           get(/databases/$(database)/documents/config/allowed).data.emails;
+    }
+
+    function validText(v, min, max) {
+      return v is string && v.size() >= min && v.size() <= max;
+    }
+
+    // True when an update touches only the listed top-level fields.
+    function onlyKeys(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // ---- the guest list: nobody can read or change it from the app ---------
+
+    match /config/{doc} {
+      allow read, write: if false;
+    }
+
+    // ---- members: the display name each person chose -----------------------
+
+    match /members/{memberId} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && memberId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['nick', 'joinedAt'])
+        && validText(request.resource.data.nick, 1, 40)
+        && request.resource.data.joinedAt == request.time;
+      allow update: if isMember()
+        && memberId == request.auth.uid
+        && onlyKeys(['nick'])
+        && validText(request.resource.data.nick, 1, 40);
+    }
+
+    // ---- reading list ------------------------------------------------------
+
+    match /books/{bookId} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(['title', 'author', 'note', 'status',
+             'suggestedBy', 'createdBy', 'createdAt', 'startedAt', 'finishedAt',
+             'votes', 'ratings'])
+        && validText(request.resource.data.title, 1, 200)
+        && validText(request.resource.data.author, 0, 200)
+        && validText(request.resource.data.note, 0, 600)
+        && validText(request.resource.data.suggestedBy, 0, 128)
+        && request.resource.data.status == 'queue'
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.votes is map
+        && request.resource.data.votes.keys().hasOnly([request.auth.uid])
+        && request.resource.data.ratings is map
+        && request.resource.data.ratings.size() == 0;
+      allow update: if isMember() && (
+        // vote or un-vote (only your own entry)
+        ( onlyKeys(['votes'])
+          && request.resource.data.votes.diff(resource.data.votes).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.votes.get(request.auth.uid, true) == true )
+        // rate 1 to 5 (only your own entry)
+        || ( onlyKeys(['ratings'])
+          && request.resource.data.ratings.diff(resource.data.ratings).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.ratings.get(request.auth.uid, 1) in [1, 2, 3, 4, 5] )
+        // start or finish a book
+        || ( onlyKeys(['status', 'startedAt', 'finishedAt'])
+          && request.resource.data.status in ['queue', 'current', 'done'] )
+      );
+      allow delete: if isMember() && resource.data.createdBy == request.auth.uid;
+    }
+
+    // ---- recommendations ---------------------------------------------------
+
+    match /ideas/{ideaId} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(['title', 'author', 'why', 'createdBy', 'createdAt', 'backs'])
+        && validText(request.resource.data.title, 1, 200)
+        && validText(request.resource.data.author, 0, 200)
+        && validText(request.resource.data.why, 0, 600)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.backs is map
+        && request.resource.data.backs.keys().hasOnly([request.auth.uid]);
+      allow update: if isMember()
+        && onlyKeys(['backs'])
+        && request.resource.data.backs.diff(resource.data.backs).affectedKeys().hasOnly([request.auth.uid])
+        && request.resource.data.backs.get(request.auth.uid, true) == true;
+      allow delete: if isMember() && resource.data.createdBy == request.auth.uid;
+    }
+
+    // ---- swap shelf --------------------------------------------------------
+
+    match /swaps/{swapId} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(['title', 'author', 'note', 'ownerId', 'status',
+             'requestedBy', 'borrowedBy', 'createdAt'])
+        && validText(request.resource.data.title, 1, 200)
+        && validText(request.resource.data.author, 0, 200)
+        && validText(request.resource.data.note, 0, 600)
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.status == 'available'
+        && request.resource.data.requestedBy == ''
+        && request.resource.data.borrowedBy == ''
+        && request.resource.data.createdAt == request.time;
+      allow update: if isMember() && (
+        // the owner lends, declines or marks a book returned
+        ( resource.data.ownerId == request.auth.uid
+          && onlyKeys(['status', 'requestedBy', 'borrowedBy'])
+          && request.resource.data.status in ['available', 'requested', 'lent'] )
+        // someone else asks to borrow an available book (fails if it was just taken)
+        || ( resource.data.ownerId != request.auth.uid
+          && resource.data.status == 'available'
+          && onlyKeys(['status', 'requestedBy'])
+          && request.resource.data.status == 'requested'
+          && request.resource.data.requestedBy == request.auth.uid )
+        // the person who asked withdraws the request
+        || ( resource.data.requestedBy == request.auth.uid
+          && resource.data.status == 'requested'
+          && onlyKeys(['status', 'requestedBy'])
+          && request.resource.data.status == 'available'
+          && request.resource.data.requestedBy == '' )
+      );
+      allow delete: if isMember() && resource.data.ownerId == request.auth.uid;
+    }
+
+    // ---- meetups -----------------------------------------------------------
+
+    match /meetups/{meetupId} {
+      allow read: if isMember();
+      allow create: if isMember()
+        && request.resource.data.keys().hasOnly(['title', 'startsAt', 'place', 'book', 'notes',
+             'createdBy', 'createdAt', 'rsvp'])
+        && validText(request.resource.data.title, 1, 200)
+        && validText(request.resource.data.place, 0, 200)
+        && validText(request.resource.data.book, 0, 200)
+        && validText(request.resource.data.notes, 0, 600)
+        && request.resource.data.startsAt is timestamp
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.rsvp is map
+        && request.resource.data.rsvp.keys().hasOnly([request.auth.uid]);
+      allow update: if isMember()
+        && onlyKeys(['rsvp'])
+        && request.resource.data.rsvp.diff(resource.data.rsvp).affectedKeys().hasOnly([request.auth.uid])
+        && request.resource.data.rsvp.get(request.auth.uid, 'yes') in ['yes', 'maybe', 'no'];
+      allow delete: if isMember() && resource.data.createdBy == request.auth.uid;
+    }
+  }
+}
