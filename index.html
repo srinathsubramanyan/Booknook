@@ -124,6 +124,15 @@ h2{font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing
 .sheet-panel{position:relative;width:100%;max-width:680px;max-height:92%;overflow:auto;background:var(--surface);border-radius:16px 16px 0 0;border:1px solid var(--line);border-bottom:0;
   padding:18px max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.thread{max-height:42vh;overflow-y:auto;display:grid;gap:12px;margin:4px 0 8px;padding-right:2px}
+.comment{display:flex;gap:10px;align-items:flex-start}
+.cbody{min-width:0;flex:1}
+.cbody .ctext{margin-top:2px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.45}
+.cbody .spoiler{margin-top:4px}
+.cbody .btn{margin-top:4px}
+.checkrow{margin-top:12px}
+.checkrow label{display:flex;gap:8px;align-items:center;min-height:44px;font-size:14px;font-weight:500}
+.checkrow input{width:20px;height:20px;accent-color:var(--accent)}
 .field{display:grid;gap:6px;margin-top:14px}
 .field label{font-weight:600;font-size:14px}
 .opt{font-weight:400;color:var(--muted);font-size:13px}
@@ -213,9 +222,9 @@ import * as FS from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firesto
 (function(){
 'use strict';
 var CFG=(window.BOOKNOOK_CONFIG||{}).firebase||{};
-var COLS={members:'members',lists:'books',recs:'ideas',swaps:'swaps',meetups:'meetups'};
+var COLS={members:'members',lists:'books',recs:'ideas',swaps:'swaps',meetups:'meetups',comments:'comments'};
 var TABS=['reading','ideas','swap','meetups'];
-var state={uid:null,ready:{},loaded:false,denied:false,error:null,unsubs:[],
+var state={discuss:null,shown:{},comments:[],commentsOff:false,uid:null,ready:{},loaded:false,denied:false,error:null,unsubs:[],
   lists:[],recs:[],swaps:[],meetups:[],members:[],filter:'all',armed:null};
 var auth=null,db=null,gateMode='',busy=new Set(),armT=0,toastT=0,schedT=0,sheetOpts=null,lastFocus=null;
 
@@ -263,6 +272,7 @@ var MAP={
     var rd={};Object.keys(d.readers||{}).forEach(function(k){var v=d.readers[k]||{};rd[k]={s:v.s,at:ts(v.at)};});
     return {id:d.id,title:d.title,author:d.author,note:d.note,by:d.createdBy,suggestedBy:d.suggestedBy||'',
       createdAt:ts(d.createdAt),readers:rd,votes:d.votes||{},ratings:d.ratings||{}};},
+  comments:function(d){return {id:d.id,bookId:d.bookId,text:d.text,spoiler:!!d.spoiler,by:d.createdBy,createdAt:ts(d.createdAt)};},
   recs:function(d){return {id:d.id,title:d.title,author:d.author,why:d.why,by:d.createdBy,createdAt:ts(d.createdAt),backs:d.backs||{}};},
   swaps:function(d){return {id:d.id,title:d.title,author:d.author,note:d.note,owner:d.ownerId,status:d.status,
     requestedBy:d.requestedBy||'',borrowedBy:d.borrowedBy||'',createdAt:ts(d.createdAt)};},
@@ -271,18 +281,21 @@ var MAP={
 };
 function resetData(){
   state.ready={};state.loaded=false;state.denied=false;state.error=null;
-  state.lists=[];state.recs=[];state.swaps=[];state.meetups=[];state.members=[];
+  state.lists=[];state.comments=[];state.recs=[];state.swaps=[];state.meetups=[];state.members=[];
 }
 function stopListening(){state.unsubs.forEach(function(u){try{u();}catch(e){}});state.unsubs=[];}
 function startListening(){
   Object.keys(COLS).forEach(function(key){
     var un=FS.onSnapshot(FS.collection(db,COLS[key]),function(snap){
       state[key]=snap.docs.map(function(x){var d=x.data({serverTimestamps:'estimate'});d.id=x.id;return MAP[key](d);});
-      state.ready[key]=true;
+      state.ready[key]=true;if(key==='comments') state.commentsOff=false;
       state.loaded=Object.keys(COLS).every(function(k){return state.ready[k];});
       state.error=null;
       schedule();
-    },function(err){onListenError(err);});
+    },function(err){
+      // Discussions are optional: if the new rules are not published yet, the rest of the app keeps working.
+      if(key==='comments'&&err&&err.code==='permission-denied'){state.commentsOff=true;state.comments=[];state.ready.comments=true;state.loaded=Object.keys(COLS).every(function(k){return state.ready[k];});schedule();return;}
+      onListenError(err);});
     state.unsubs.push(un);
   });
 }
@@ -321,7 +334,7 @@ function guarded(key,fn){
   return Promise.resolve().then(fn).catch(function(e){toast(writeError(e));}).then(function(){busy.delete(key);});
 }
 function patchDoc(key,coll,id,data){return guarded(key,function(){return FS.updateDoc(ref(coll,id),data);});}
-var TABLE_OF={lists:'books',recs:'ideas',swaps:'swaps',meetups:'meetups'};
+var TABLE_OF={comments:'comments',lists:'books',recs:'ideas',swaps:'swaps',meetups:'meetups'};
 function del(coll,id){
   var key=coll+'/'+id;
   if(state.armed!==key){
@@ -409,11 +422,11 @@ function viewReading(){
   function lines(it){return '<p class="meta">Added by '+who(it.suggestedBy||it.by)+'</p>'+(it.note?'<p class="quote">'+esc(it.note)+'</p>':'')+readersLine(it);}
   var out=h+'<h3 class="label">You are reading</h3>';
   out+=cur.length?'<div class="list">'+cur.map(function(it){
-    return bookCard(it,lines(it),btn('Mark finished','finish',it.id,{kind:'primary'})+btn('Stop reading','unstart',it.id,{kind:'quiet'})+delBtn('lists',it));
+    return bookCard(it,lines(it),btn('Mark finished','finish',it.id,{kind:'primary'})+btn('Stop reading','unstart',it.id,{kind:'quiet'})+discussBtn(it)+delBtn('lists',it));
   }).join('')+'</div>':'<div class="empty"><p>Nothing on the go. Start one from Up next.</p></div>';
   out+='<h3 class="label">Up next</h3>';
   out+=queue.length?'<div class="list">'+queue.map(function(it){
-    return bookCard(it,lines(it),btn('Vote &middot; '+count(it.votes),'vote',it.id,{pressed:mine(it.votes)})+btn('Start reading','start',it.id)+delBtn('lists',it));
+    return bookCard(it,lines(it),btn('Vote &middot; '+count(it.votes),'vote',it.id,{pressed:mine(it.votes)})+btn('Start reading','start',it.id)+discussBtn(it)+delBtn('lists',it));
   }).join('')+'</div>':'<div class="empty"><p>Nothing left to pick up. Add a book or move one over from Ideas.</p></div>';
   if(done.length){
     out+='<h3 class="label">You have finished</h3><div class="list">'+done.map(function(it){
@@ -423,7 +436,7 @@ function viewReading(){
       var mineR=(it.ratings||{})[state.uid]||0;
       var acts='<span class="meta">Your rating</span>';
       for(var n=1;n<=5;n++) acts+=btn(String(n),'rate',it.id,{arg:n,pressed:mineR===n,kind:'rate'});
-      acts+=btn('Back to reading','start',it.id,{kind:'quiet'})+delBtn('lists',it);
+      acts+=btn('Back to reading','start',it.id,{kind:'quiet'})+discussBtn(it)+delBtn('lists',it);
       return bookCard(it,extra,acts);
     }).join('')+'</div>';
   }
@@ -551,11 +564,13 @@ function render(){
     var el;try{el=document.querySelector(sel);}catch(e){el=null;}
     if(el) el.focus();
   }
+  refreshThread();
 }
 
 /* ---------- sign-in gate ---------- */
 function fieldHtml(f,prefix){
   var id=(prefix||'f-')+f.id;
+  if(f.type==='checkbox') return '<div class="checkrow"><label for="'+id+'"><input type="checkbox" id="'+id+'" name="'+f.id+'"> '+esc(f.label)+'</label></div>';
   var lab='<label for="'+id+'">'+esc(f.label)+(f.required?'':' <span class="opt">optional</span>')+'</label>';
   var ctl=f.type==='textarea'?'<textarea id="'+id+'" name="'+f.id+'" maxlength="'+(f.max||600)+'" placeholder="'+esc(f.placeholder||'')+'">'+esc(f.value||'')+'</textarea>':
     '<input id="'+id+'" name="'+f.id+'" type="'+(f.type||'text')+'" maxlength="'+(f.max||140)+'" placeholder="'+esc(f.placeholder||'')+'" value="'+esc(f.value||'')+'" autocomplete="'+(f.auto||'off')+'">';
@@ -636,6 +651,7 @@ function openSheet(o){
   (first||$('#sheet-close')).focus();
 }
 function closeSheet(){
+  state.discuss=null;
   $('#sheet').hidden=true;sheetOpts=null;$('#sheet-body').innerHTML='';$('#sheet-extra').innerHTML='';
   if(lastFocus&&document.contains(lastFocus)) lastFocus.focus();
 }
@@ -645,14 +661,17 @@ $('#sheet-form').addEventListener('submit',function(e){
   var vals={};
   for(var i=0;i<(o.fields||[]).length;i++){
     var f=o.fields[i];var el=$('#f-'+f.id);
-    vals[f.id]=f.type==='password'?(el.value||''):(el.value||'').trim();
+    vals[f.id]=f.type==='checkbox'?el.checked:f.type==='password'?(el.value||''):(el.value||'').trim();
     if(f.required&&!vals[f.id]){$('#sheet-err').textContent=f.label+' is required.';el.focus();return;}
   }
   var b=$('#sheet-submit');b.disabled=true;
   Promise.resolve().then(function(){
     if(!canWrite()) throw {userMessage:'Sign in and pick a name first.'};
     return o.onSubmit(vals);
-  }).then(function(){closeSheet();}).catch(function(err){$('#sheet-err').textContent=writeError(err);}).then(function(){b.disabled=false;});
+  }).then(function(){
+    if(o.keepOpen){(o.fields||[]).forEach(function(f){var el=$('#f-'+f.id);if(el){if(f.type==='checkbox') el.checked=false; else el.value='';}});var t=$('#sheet-body textarea');if(t) t.focus();}
+    else closeSheet();
+  }).catch(function(err){$('#sheet-err').textContent=writeError(err);}).then(function(){b.disabled=false;});
 });
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#sheet').hidden) closeSheet();});
 
@@ -693,6 +712,39 @@ function installApp(){
     :'<ol class="lede"><li>Open this page in <b>Chrome</b>.</li><li>Tap the <b>menu</b> (three dots).</li><li>Choose <b>Install app</b> or <b>Add to Home screen</b>.</li></ol>';
   openSheet({title:'Add to home screen',html:'<p class="lede">Booknook then opens like an app, with its own icon and no browser bars.</p>'+steps,submit:'Done',fields:[],onSubmit:function(){}});
 }
+function commentsFor(id){return state.comments.filter(function(c){return c.bookId===id;}).sort(function(a,b){return (a.createdAt||0)-(b.createdAt||0);});}
+function discussBtn(it){if(state.commentsOff) return '';var n=commentsFor(it.id).length;return btn('Discuss'+(n?' &middot; '+n:''),'discuss',it.id,{kind:'quiet'});}
+function threadHtml(){
+  var list=commentsFor(state.discuss);
+  if(!list.length) return '<p class="lede">No comments yet. Start the conversation. If you are talking about the ending, tick the spoiler box so others can choose when to read it.</p>';
+  return list.map(function(c){
+    var when=c.createdAt?new Date(c.createdAt).toLocaleString(undefined,{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}):'sending';
+    var body=c.spoiler&&!state.shown[c.id]&&c.by!==state.uid
+      ?'<p class="spoiler">'+btn('Spoiler. Tap to read','reveal',c.id,{kind:'quiet'})+'</p>'
+      :'<p class="ctext">'+(c.spoiler?'<span class="chip">Spoiler</span> ':'')+esc(c.text)+'</p>';
+    return '<div class="comment">'+av(c.by,'sm')+'<div class="cbody"><p class="meta"><b>'+who(c.by)+'</b> &middot; '+when+'</p>'+body+delBtn('comments',c)+'</div></div>';
+  }).join('');
+}
+function refreshThread(){
+  var el=$('#thread');if(!el||!state.discuss) return;
+  var near=el.scrollHeight-el.scrollTop-el.clientHeight<80;
+  var key=document.activeElement&&el.contains(document.activeElement)?document.activeElement.dataset.id:null;
+  el.innerHTML=threadHtml();
+  if(near) el.scrollTop=el.scrollHeight;
+  if(key){var f=el.querySelector('[data-id="'+key+'"]');if(f) f.focus();}
+}
+function openDiscuss(id){
+  var bk=state.lists.find(function(x){return x.id===id;});if(!bk) return;
+  state.discuss=id;
+  openSheet({title:bk.title,intro:'Discussion'+(bk.author?' of '+bk.title+' by '+bk.author:''),submit:'Post comment',keepOpen:true,
+    html:'<div id="thread" class="thread" aria-live="polite"></div>',
+    fields:[{id:'text',label:'Add to the discussion',type:'textarea',required:true,max:1000},{id:'spoiler',label:'This comment has spoilers',type:'checkbox'}],
+    onSubmit:function(v){
+      return FS.addDoc(colRef('comments'),{bookId:id,text:v.text,spoiler:!!v.spoiler,createdBy:state.uid,createdAt:FS.serverTimestamp()});
+    }});
+  state.discuss=id;
+  var el=$('#thread');if(el){el.innerHTML=threadHtml();el.scrollTop=el.scrollHeight;}
+}
 function openMembers(){
   var rows=state.members.length?'<ul class="mlist">'+state.members.map(function(m){
     return '<li class="mrow">'+av(m.id,'sm')+'<span>'+esc(nameOf(m.id,true))+(m.id===state.uid?' <span class="opt">(you)</span>':'')+'</span></li>';
@@ -725,6 +777,8 @@ function act(a,id,arg){
     case 'add-meetup':return openAddMeetup();
     case 'members':return openMembers();
     case 'install':return installApp();
+    case 'discuss':return openDiscuss(id);
+    case 'reveal':state.shown[id]=true;return refreshThread();
     case 'signout':closeSheet();return FAUTH.signOut(auth);
     case 'vote':{var bk=state.lists.find(function(x){return x.id===id;});if(!bk) return;return guarded('vote'+id,function(){return toggleMap('books',id,'votes',mine(bk.votes));});}
     case 'start':return setReader(id,'reading');
