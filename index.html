@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>Booknook</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#1F5F4A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Booknook">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect x=%226%22 y=%224%22 width=%2220%22 height=%2224%22 rx=%223%22 fill=%22%231F5F4A%22/%3E%3Crect x=%226%22 y=%224%22 width=%225%22 height=%2224%22 rx=%223%22 fill=%22%23134235%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -252,8 +259,10 @@ function writeError(e){
 function ts(t){return t&&t.toMillis?t.toMillis():0;}
 var MAP={
   members:function(d){return {id:d.id,nick:d.nick||''};},
-  lists:function(d){return {id:d.id,title:d.title,author:d.author,note:d.note,status:d.status,by:d.createdBy,suggestedBy:d.suggestedBy||'',
-    createdAt:ts(d.createdAt),finishedAt:ts(d.finishedAt),votes:d.votes||{},ratings:d.ratings||{}};},
+  lists:function(d){
+    var rd={};Object.keys(d.readers||{}).forEach(function(k){var v=d.readers[k]||{};rd[k]={s:v.s,at:ts(v.at)};});
+    return {id:d.id,title:d.title,author:d.author,note:d.note,by:d.createdBy,suggestedBy:d.suggestedBy||'',
+      createdAt:ts(d.createdAt),readers:rd,votes:d.votes||{},ratings:d.ratings||{}};},
   recs:function(d){return {id:d.id,title:d.title,author:d.author,why:d.why,by:d.createdBy,createdAt:ts(d.createdAt),backs:d.backs||{}};},
   swaps:function(d){return {id:d.id,title:d.title,author:d.author,note:d.note,owner:d.ownerId,status:d.status,
     requestedBy:d.requestedBy||'',borrowedBy:d.borrowedBy||'',createdAt:ts(d.createdAt)};},
@@ -329,8 +338,11 @@ function saveNick(nick){
 }
 function newBook(v,extra){
   var votes={};votes[state.uid]=true;
-  return FS.addDoc(colRef('books'),Object.assign({title:v.title,author:v.author||'',note:v.note||'',status:'queue',suggestedBy:'',
-    createdBy:state.uid,createdAt:FS.serverTimestamp(),startedAt:null,finishedAt:null,votes:votes,ratings:{}},extra||{}));
+  return FS.addDoc(colRef('books'),Object.assign({title:v.title,author:v.author||'',note:v.note||'',suggestedBy:'',
+    createdBy:state.uid,createdAt:FS.serverTimestamp(),votes:votes,ratings:{},readers:{}},extra||{}));
+}
+function setReader(id,s){
+  return guarded('book'+id,function(){return FS.updateDoc(ref('books',id),mapField('readers',{s:s,at:FS.serverTimestamp()}));});
 }
 function promote(id){
   var r=state.recs.find(function(x){return x.id===id;});
@@ -374,33 +386,44 @@ function head(title,lede,act,label){
   return '<div class="head"><h2>'+esc(title)+'</h2>'+(canWrite()?btn(esc(label),act,null,{kind:'primary'}):'')+'</div><p class="lede">'+esc(lede)+'</p>';
 }
 
+function readerOf(it,uid){return (it.readers||{})[uid]||null;}
+function readersLine(it){
+  var ids=Object.keys(it.readers||{});
+  var reading=ids.filter(function(k){return it.readers[k].s==='reading';});
+  var done=ids.filter(function(k){return it.readers[k].s==='done';});
+  var out='';
+  if(reading.length) out+='<p class="meta">Reading now: '+reading.map(who).join(', ')+'</p>';
+  if(done.length) out+='<p class="meta">Finished by: '+done.map(who).join(', ')+'</p>';
+  return out;
+}
 function viewReading(){
   var L=state.lists;
-  var h=head('Reading list','What the group is reading now, what could come next, and what is done.','add-book','Add a book');
+  var h=head('Reading list','Everyone reads at their own pace. Vote on what to pick up next, then start and finish books whenever you like.','add-book','Add a book');
   if(!state.loaded) return h+loadingBlock();
-  if(!L.length) return h+emptyBlock('Nothing on the list yet','Add the book you want the group to read next. Everyone can vote on what goes first.','add-book','Add a book');
-  var cur=L.filter(function(x){return x.status==='current';});
-  var queue=L.filter(function(x){return x.status==='queue';}).sort(function(a,b){return count(b.votes)-count(a.votes)||(a.createdAt||0)-(b.createdAt||0);});
-  var done=L.filter(function(x){return x.status==='done';}).sort(function(a,b){return (b.finishedAt||0)-(a.finishedAt||0);});
-  var out=h+'<h3 class="label">Now reading</h3>';
+  if(!L.length) return h+emptyBlock('Nothing on the list yet','Add the book you want the group to read next. Everyone can vote, and everyone keeps their own progress.','add-book','Add a book');
+  function st(it){var r=readerOf(it,state.uid);return r?r.s:'';}
+  function mineAt(it){var r=readerOf(it,state.uid);return r?r.at:0;}
+  var cur=L.filter(function(x){return st(x)==='reading';}).sort(function(a,b){return mineAt(b)-mineAt(a);});
+  var queue=L.filter(function(x){return !st(x);}).sort(function(a,b){return count(b.votes)-count(a.votes)||(a.createdAt||0)-(b.createdAt||0);});
+  var done=L.filter(function(x){return st(x)==='done';}).sort(function(a,b){return mineAt(b)-mineAt(a);});
+  function lines(it){return '<p class="meta">Added by '+who(it.suggestedBy||it.by)+'</p>'+(it.note?'<p class="quote">'+esc(it.note)+'</p>':'')+readersLine(it);}
+  var out=h+'<h3 class="label">You are reading</h3>';
   out+=cur.length?'<div class="list">'+cur.map(function(it){
-    var extra='<p class="meta">Added by '+who(it.suggestedBy||it.by)+'</p>'+(it.note?'<p class="quote">'+esc(it.note)+'</p>':'');
-    return bookCard(it,extra,btn('Mark finished','finish',it.id,{kind:'primary'})+delBtn('lists',it));
+    return bookCard(it,lines(it),btn('Mark finished','finish',it.id,{kind:'primary'})+btn('Stop reading','unstart',it.id,{kind:'quiet'})+delBtn('lists',it));
   }).join('')+'</div>':'<div class="empty"><p>Nothing on the go. Start one from Up next.</p></div>';
   out+='<h3 class="label">Up next</h3>';
   out+=queue.length?'<div class="list">'+queue.map(function(it){
-    var extra='<p class="meta">Added by '+who(it.suggestedBy||it.by)+'</p>'+(it.note?'<p class="quote">'+esc(it.note)+'</p>':'');
-    return bookCard(it,extra,btn('Vote &middot; '+count(it.votes),'vote',it.id,{pressed:mine(it.votes)})+btn('Start reading','start',it.id)+delBtn('lists',it));
-  }).join('')+'</div>':'<div class="empty"><p>The queue is empty. Add a book or move one over from Ideas.</p></div>';
+    return bookCard(it,lines(it),btn('Vote &middot; '+count(it.votes),'vote',it.id,{pressed:mine(it.votes)})+btn('Start reading','start',it.id)+delBtn('lists',it));
+  }).join('')+'</div>':'<div class="empty"><p>Nothing left to pick up. Add a book or move one over from Ideas.</p></div>';
   if(done.length){
-    out+='<h3 class="label">Finished</h3><div class="list">'+done.map(function(it){
+    out+='<h3 class="label">You have finished</h3><div class="list">'+done.map(function(it){
       var rs=Object.values(it.ratings||{}).filter(function(n){return typeof n==='number'&&n>0;});
       var avg=rs.length?(rs.reduce(function(a,b){return a+b;},0)/rs.length).toFixed(1):null;
-      var extra='<p class="meta">'+(avg?'Rated '+avg+' out of 5 by '+rs.length+(rs.length===1?' reader':' readers'):'No ratings yet')+'</p>';
+      var extra='<p class="meta">'+(avg?'Group rating '+avg+' out of 5 from '+rs.length+(rs.length===1?' reader':' readers'):'No ratings yet')+'</p>'+readersLine(it);
       var mineR=(it.ratings||{})[state.uid]||0;
       var acts='<span class="meta">Your rating</span>';
       for(var n=1;n<=5;n++) acts+=btn(String(n),'rate',it.id,{arg:n,pressed:mineR===n,kind:'rate'});
-      acts+=delBtn('lists',it);
+      acts+=btn('Back to reading','start',it.id,{kind:'quiet'})+delBtn('lists',it);
       return bookCard(it,extra,acts);
     }).join('')+'</div>';
   }
@@ -510,7 +533,7 @@ function drawChrome(){
     if(a.dataset.tab===t) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current');
   });
   var counts={
-    reading:state.lists.filter(function(x){return x.status!=='done';}).length,
+    reading:state.lists.filter(function(x){var r=readerOf(x,state.uid);return !r||r.s!=='done';}).length,
     ideas:state.recs.length,
     swap:state.swaps.filter(function(x){return x.status==='available';}).length,
     meetups:parsedMeetups().filter(function(m){return m.t>=Date.now()-3*3600e3;}).length
@@ -657,12 +680,25 @@ function openAddMeetup(){openSheet({title:'Plan a meetup',submit:'Add to meetups
     return FS.addDoc(colRef('meetups'),{title:v.title,startsAt:FS.Timestamp.fromDate(d),place:v.place||'',book:v.book||'',notes:v.notes||'',
       createdBy:state.uid,createdAt:FS.serverTimestamp(),rsvp:rsvp});
   }});}
+var installEvt=null;
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();installEvt=e;});
+window.addEventListener('appinstalled',function(){installEvt=null;toast('Booknook added to your home screen.');});
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});}
+function isStandalone(){return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true;}
+function installApp(){
+  if(installEvt){var e=installEvt;installEvt=null;closeSheet();e.prompt();return;}
+  var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  var steps=ios
+    ?'<ol class="lede"><li>Open this page in <b>Safari</b>.</li><li>Tap the <b>Share</b> button (square with an arrow).</li><li>Choose <b>Add to Home Screen</b>, then <b>Add</b>.</li></ol>'
+    :'<ol class="lede"><li>Open this page in <b>Chrome</b>.</li><li>Tap the <b>menu</b> (three dots).</li><li>Choose <b>Install app</b> or <b>Add to Home screen</b>.</li></ol>';
+  openSheet({title:'Add to home screen',html:'<p class="lede">Booknook then opens like an app, with its own icon and no browser bars.</p>'+steps,submit:'Done',fields:[],onSubmit:function(){}});
+}
 function openMembers(){
   var rows=state.members.length?'<ul class="mlist">'+state.members.map(function(m){
     return '<li class="mrow">'+av(m.id,'sm')+'<span>'+esc(nameOf(m.id,true))+(m.id===state.uid?' <span class="opt">(you)</span>':'')+'</span></li>';
   }).join('')+'</ul>':'<p class="lede">No one has joined yet.</p>';
   var me=state.members.find(function(m){return m.id===state.uid;});
-  openSheet({title:'Members',html:rows,submit:'Save',extra:btn('Sign out','signout',null,{kind:'quiet'}),
+  openSheet({title:'Members',html:rows,submit:'Save',extra:(isStandalone()?'':btn('Add to home screen','install',null,{kind:'quiet'}))+btn('Sign out','signout',null,{kind:'quiet'}),
     fields:[{id:'nick',label:'Name shown to the group',required:true,value:me?me.nick:'',max:40},
       {id:'password',label:'New password',type:'password',auto:'new-password',max:128,placeholder:'At least 8 characters'}],
     onSubmit:function(v){
@@ -688,10 +724,12 @@ function act(a,id,arg){
     case 'add-swap':return openAddSwap();
     case 'add-meetup':return openAddMeetup();
     case 'members':return openMembers();
+    case 'install':return installApp();
     case 'signout':closeSheet();return FAUTH.signOut(auth);
     case 'vote':{var bk=state.lists.find(function(x){return x.id===id;});if(!bk) return;return guarded('vote'+id,function(){return toggleMap('books',id,'votes',mine(bk.votes));});}
-    case 'start':return patchDoc('book'+id,'books',id,{status:'current',startedAt:FS.serverTimestamp()});
-    case 'finish':return patchDoc('book'+id,'books',id,{status:'done',finishedAt:FS.serverTimestamp()});
+    case 'start':return setReader(id,'reading');
+    case 'finish':return setReader(id,'done');
+    case 'unstart':return guarded('book'+id,function(){return FS.updateDoc(ref('books',id),mapField('readers',FS.deleteField()));});
     case 'rate':return guarded('rate'+id,function(){return FS.updateDoc(ref('books',id),mapField('ratings',Number(arg)));});
     case 'back':{var rc=state.recs.find(function(x){return x.id===id;});if(!rc) return;return guarded('back'+id,function(){return toggleMap('ideas',id,'backs',mine(rc.backs));});}
     case 'promote':return promote(id);
